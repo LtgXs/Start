@@ -159,7 +159,7 @@ function setBgImgInit() {
             $('#bg').attr('src', 'https://api.ixiaowai.cn/api/api.php') //随机二次元
             break;
         case "5":
-            $('#bg').attr('src', bg_img["path"]) //自定义
+            $('#bg').attr('src', 'https://sex.nyan.xyz/api/v2/img') //自定义
             break;
     }
 }
