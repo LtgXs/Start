@@ -1,1 +1,1 @@
-[github pages]("https://ltgxs.github.io/Start/")
+[github pages](https://ltgxs.github.io/Start)
