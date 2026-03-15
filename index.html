@@ -1,25 +1,21 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Snavigation</title>
+    <meta name="description" content="Snavigation - 简洁的浏览器导航起始页">
     <link rel="icon" href="favicon.ico">
-    <!-- jQuery -->
-    <script src="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-y/jquery/3.6.0/jquery.min.js"></script>
     <!-- 引入样式 -->
     <link rel="stylesheet" type="text/css" href="./css/style.css">
     <link rel="stylesheet" type="text/css" href="./css/font.css">
     <link rel="stylesheet" type="text/css" href="./css/loading.css">
     <link rel="stylesheet" type="text/css" href="./css/mobile.css">
     <link rel="stylesheet" type="text/css" href="./css/animation.css">
-    <!-- Izitoast -->
-    <link rel="stylesheet" href="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-y/izitoast/1.4.0/css/iziToast.min.css">
-    <script type="text/javascript"
-        src="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-y/izitoast/1.4.0/js/iziToast.min.js">
-    </script>
+    <!-- Izitoast CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/izitoast/1.4.0/css/iziToast.min.css">
     <!-- IE Out -->
     <script>
         if ( /*@cc_on!@*/ false || (!!window.MSInputMethodContext && !!document.documentMode)) window.location.href =
@@ -47,11 +43,11 @@
     </div>
     <!-- 背景图片 -->
     <div class="bg-all">
-        <img id="bg" onerror="this.classList.add('error');"></img>
+        <img id="bg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.classList.add('error');" alt="背景图片">
         <div class="cover"></div>
     </div>
     <!-- 主体内容 -->
-    <section id="section" class="section">
+    <section id="section" class="section" aria-label="主内容区域">
         <div id="content">
             <div class="con">
                 <!-- 时间天气 -->
@@ -60,20 +56,27 @@
                         <span id="time_text">00<span id="point">:</span>00</span>
                         <span id="day">0&nbsp;月&nbsp;00&nbsp;日&nbsp;周一</span>
                     </div>
-                    <div class="weather">
+                    <div class="weather" id="weather-main" role="button" aria-expanded="false" title="点击查看详细天气">
                         <span id="wea_text">N/A</span>&nbsp;<span id="tem2">N/A</span>°C&nbsp;~&nbsp;<span
                             id="tem1">N/A</span>°C
+                        <span id="wea_city" class="wea-city"></span>
+                    </div>
+                    <div class="weather-detail" id="weather-detail" style="display: none;">
+                        <span class="wea-detail-item">🌡️ 体感 <span id="wea_feels">--</span>°C</span>
+                        <span class="wea-detail-item">💧 湿度 <span id="wea_hum">--</span>%</span>
+                        <span class="wea-detail-item">🌬️ 风速 <span id="wea_wind">--</span></span>
+                        <span class="wea-detail-item">☀️ UV <span id="wea_uv">--</span></span>
                     </div>
                 </div>
                 <!-- 搜索框 -->
                 <div class="close_sou"></div>
                 <div class="sou">
-                    <form class="search" action="https://www.baidu.com/s" target="_Blank">
+                    <form class="search" action="https://www.baidu.com/s" target="_blank" rel="noopener noreferrer">
                         <div class="all-search">
                             <div class="se" title="点击切换搜索引擎">
                                 <i id="icon-se" class="iconfont icon-baidu"></i>
                             </div>
-                            <input class="wd" type="text" name="wd" placeholder="想要搜点什么" autocomplete="off">
+                            <input class="wd" type="text" name="wd" placeholder="想要搜点什么" autocomplete="off" aria-label="搜索">
                             <div class="sou-button">
                                 <div class="s" id="s-button">
                                     <i id="icon-sou" class="iconfont icon-sousuo"></i>
@@ -85,27 +88,7 @@
                     <div id="keywords" style="display: none;"></div>
                     <div class="search-engine" style="display: none;">
                         <div class="search-engine-list">
-                            <div class="se-li">
-                                <a class="se-li-text" data-url="https://www.baidu.com/s" data-name="wd"
-                                    data-icon="iconfont icon-baidu">
-                                    <i id="icon-sou-list" class="iconfont icon-sousuo"></i>
-                                    <span>百度</span>
-                                </a>
-                            </div>
-                            <div class="se-li" data-url="https://cn.bing.com/search" data-name="q"
-                                data-icon="iconfont icon-bing">
-                                <a class="se-li-text">
-                                    <i id="icon-sou-list" class="iconfont icon-bing"></i>
-                                    <span>必应</span>
-                                </a>
-                            </div>
-                            <div class="se-li" data-url="https://www.google.com/search" data-name="q"
-                                data-icon="iconfont icon-google">
-                                <a class="se-li-text">
-                                    <i id="icon-sou-list" class="iconfont icon-google"></i>
-                                    <span>谷歌</span>
-                                </a>
-                            </div>
+                            <!-- 此静态列表会被 seList() 动态覆盖 -->
                         </div>
                     </div>
                 </div>
@@ -121,7 +104,7 @@
                         <div class="mainCont selected">
                             <div class="quick-all">
                                 <div class="quick">
-                                    <a href="https://github.com/" target="_blank">
+                                    <a href="https://github.com/" target="_blank" rel="noopener noreferrer">
                                         GitHub
                                     </a>
                                 </div>
@@ -131,63 +114,63 @@
                         <div class="mainCont">
                             <div class="quick-alls">
                                 <div class="quicks">
-                                    <a href="https://tool.chinaz.com/" target="_blank">
+                                    <a href="https://devdocs.io/" target="_blank" rel="noopener noreferrer">
+                                        DevDocs
+                                    </a>
+                                </div>
+                                <div class="quicks">
+                                    <a href="https://caniuse.com/" target="_blank" rel="noopener noreferrer">
+                                        Can I Use
+                                    </a>
+                                </div>
+                                <div class="quicks">
+                                    <a href="https://codepen.io/" target="_blank" rel="noopener noreferrer">
+                                        CodePen
+                                    </a>
+                                </div>
+                                <div class="quicks">
+                                    <a href="https://tool.chinaz.com/" target="_blank" rel="noopener noreferrer">
                                         站长之家
                                     </a>
                                 </div>
                                 <div class="quicks">
-                                    <a href="https://www.toolnb.com/" target="_blank">
-                                        爱资料工具
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://www.aconvert.com/cn/" target="_blank">
-                                        Aconvert
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://next.itellyou.cn/" target="_blank">
+                                    <a href="https://next.itellyou.cn/" target="_blank" rel="noopener noreferrer">
                                         MSDN
                                     </a>
                                 </div>
                                 <div class="quicks">
-                                    <a href="https://www.bejson.com/" target="_blank">
-                                        BEJSON
+                                    <a href="https://regex101.com/" target="_blank" rel="noopener noreferrer">
+                                        Regex101
                                     </a>
                                 </div>
                                 <div class="quicks">
-                                    <a href="https://zh.z-lib.org/" target="_blank">
-                                        Z-Library
+                                    <a href="https://www.json.cn/" target="_blank" rel="noopener noreferrer">
+                                        JSON 格式化
                                     </a>
                                 </div>
                                 <div class="quicks">
-                                    <a href="https://ebook.huzerui.com/" target="_blank">
-                                        熊猫搜书
+                                    <a href="https://npm.devtool.tech/" target="_blank" rel="noopener noreferrer">
+                                        NPM 查询
                                     </a>
                                 </div>
                                 <div class="quicks">
-                                    <a href="https://vocalremover.org/ch/" target="_blank">
-                                        VocalreMover
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://tiomg.org/" target="_blank">
-                                        太美工具
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://s.threatbook.cn/" target="_blank">
-                                        微步云沙箱
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://www.tablesgenerator.com/" target="_blank">
+                                    <a href="https://www.tablesgenerator.com/" target="_blank" rel="noopener noreferrer">
                                         表格生成
                                     </a>
                                 </div>
                                 <div class="quicks">
-                                    <a href="https://write.imsyy.top/" target="_blank">
-                                        MD 编辑器
+                                    <a href="https://squoosh.app/" target="_blank" rel="noopener noreferrer">
+                                        Squoosh 压图
+                                    </a>
+                                </div>
+                                <div class="quicks">
+                                    <a href="https://tinypng.com/" target="_blank" rel="noopener noreferrer">
+                                        TinyPNG
+                                    </a>
+                                </div>
+                                <div class="quicks">
+                                    <a href="https://excalidraw.com/" target="_blank" rel="noopener noreferrer">
+                                        Excalidraw
                                     </a>
                                 </div>
                             </div>
@@ -195,54 +178,54 @@
                         <!-- 学习 -->
                         <div class="mainCont">
                             <div class="quick-alls">
-                                <div class="quicks" data-s="github" title="GitHub">
-                                    <a href="https://github.com/" target="_blank">
+                                <div class="quicks">
+                                    <a href="https://github.com/" target="_blank" rel="noopener noreferrer">
                                         GitHub
                                     </a>
                                 </div>
-                                <div class="quicks" data-s="aqd" title="aqd">
-                                    <a href="http://www.aqd66.com/" target="_blank">
-                                        aqd
+                                <div class="quicks">
+                                    <a href="https://developer.mozilla.org/zh-CN/" target="_blank" rel="noopener noreferrer">
+                                        MDN 文档
                                     </a>
                                 </div>
-                                <div class="quicks" data-s="my" title="my">
-                                    <a href="https://n0g3jq55edydvd7.com:58003/" target="_blank">
-                                        my
+                                <div class="quicks">
+                                    <a href="https://www.runoob.com/" target="_blank" rel="noopener noreferrer">
+                                        菜鸟教程
                                     </a>
                                 </div>
-                                <div class="quicks" data-s="hitomi" title="Hitomi">
-                                    <a href="https://hitomi.la/series/genshin%20impact-all.html" target="_blank">
-                                        Hitomi
+                                <div class="quicks">
+                                    <a href="https://leetcode.cn/" target="_blank" rel="noopener noreferrer">
+                                        力扣 LeetCode
                                     </a>
                                 </div>
-                                <div class="quicks" data-s="spankbank" title="SpankBang">
-                                    <a href="https://spankbang.com/s/japanese+teen/" target="_blank">
-                                        SpankB
+                                <div class="quicks">
+                                    <a href="https://www.coursera.org/" target="_blank" rel="noopener noreferrer">
+                                        Coursera
                                     </a>
                                 </div>
-                                <div class="quicks" data-s="nhentai" title="nhentai">
-                                    <a href="https://nhentai.net/artist/houhokekiyo/" target="_blank">
-                                        nhentai
+                                <div class="quicks">
+                                    <a href="https://stackoverflow.com/" target="_blank" rel="noopener noreferrer">
+                                        Stack Overflow
                                     </a>
                                 </div>
-                                <div class="quicks" data-s="tktube" title="tktube">
-                                    <a href="https://tktube.com/search/fc2/" target="_blank">
-                                        TKTube
+                                <div class="quicks">
+                                    <a href="https://www.bilibili.com/" target="_blank" rel="noopener noreferrer">
+                                        B站学习
                                     </a>
                                 </div>
-                                <div class="quicks" data-s="Genshin" title="Genshin">
-                                    <a href="https://github.com/MAnggiarMustofa/GI-Download-Library" target="_blank">
-                                        原神版本下载
+                                <div class="quicks">
+                                    <a href="https://juejin.cn/" target="_blank" rel="noopener noreferrer">
+                                        稀土掘金
                                     </a>
                                 </div>
-                                <div class="quicks" data-s="PlanAmbr" title="PlanAmbr">
-                                    <a href="https://ambr.top/chs/changelog" target="_blank">
-                                        安柏计划
+                                <div class="quicks">
+                                    <a href="https://www.zhihu.com/" target="_blank" rel="noopener noreferrer">
+                                        知乎
                                     </a>
                                 </div>
-                                <div class="quicks" data-s="ArtyHuang" title="Arty Huang">
-                                    <a href="https://mitaku.net/tag/arty-huang/" target="_blank">
-                                        Arty Huang
+                                <div class="quicks">
+                                    <a href="https://segmentfault.com/" target="_blank" rel="noopener noreferrer">
+                                        思否
                                     </a>
                                 </div>
                             </div>
@@ -250,7 +233,7 @@
                     </div>
                 </div>
                 <!-- 设置图标 -->
-                <div id="menu">
+                <div id="menu" aria-label="设置" role="button">
                     <i id="icon-menu" class="iconfont icon-shezhi"></i>
                 </div>
                 <!-- 设置页 -->
@@ -275,14 +258,14 @@
                                                 <div class="se_list_name">百度</div>
                                                 <div class="se_list_button">
                                                     <button class="set_se_default" value="baidu"
-                                                        style="border-radius: 8px 0px 0px 8px;">
+                                                        style="border-radius: 8px 0px 0px 8px;" aria-label="设为默认">
                                                         <span class="iconfont icon-home"></span>
                                                     </button>
-                                                    <button class="edit_se" value="baidu">
+                                                    <button class="edit_se" value="baidu" aria-label="编辑">
                                                         <span class="iconfont icon-xiugai"></span>
                                                     </button>
                                                     <button class="delete_se" value="baidu"
-                                                        style="border-radius: 0px 8px 8px 0px;">
+                                                        style="border-radius: 0px 8px 8px 0px;" aria-label="删除">
                                                         <span class="iconfont icon-delete"></span>
                                                     </button>
                                                 </div>
@@ -291,11 +274,11 @@
                                                 <div class="se_list_num">2</div>
                                                 <div class="se_list_name">谷歌</div>
                                                 <div class="se_list_button">
-                                                    <button class="set_se_default" value="google"><span
+                                                    <button class="set_se_default" value="google" aria-label="设为默认"><span
                                                             class="iconfont icon-home"></span></button>
-                                                    <button class="edit_se" value="google"><span
+                                                    <button class="edit_se" value="google" aria-label="编辑"><span
                                                             class="iconfont icon-xiugai"></span></button>
-                                                    <button class="delete_se" value="google"><span
+                                                    <button class="delete_se" value="google" aria-label="删除"><span
                                                             class="iconfont icon-delete"></span></button>
                                                 </div>
                                             </div>
@@ -355,12 +338,14 @@
                                                 <div class="quick_list_div_num">1</div>
                                                 <div class="quick_list_div_name">哔哩哔哩</div>
                                                 <div class="quick_list_div_button">
-                                                    <div class="edit_quick" value="1">
-                                                        <span class="iconfont iconbook-edit"></span>
-                                                    </div>
-                                                    <div class="delete_quick" value="1">
-                                                        <span class="iconfont icondelete"></span>
-                                                    </div>
+                                                    <button class="edit_quick" value="1"
+                                                        style="border-radius: 8px 0px 0px 8px;" aria-label="编辑">
+                                                        <span class="iconfont icon-xiugai"></span>
+                                                    </button>
+                                                    <button class="delete_quick" value="1"
+                                                        style="border-radius: 0px 8px 8px 0px;" aria-label="删除">
+                                                        <span class="iconfont icon-delete"></span>
+                                                    </button>
                                                 </div>
                                             </div>
                                             <div class="quick_list_div">
@@ -368,12 +353,12 @@
                                                 <div class="quick_list_div_name">知乎</div>
                                                 <div class="quick_list_div_button">
                                                     <button class="edit_quick" value="2"
-                                                        style="border-radius: 8px 0px 0px 8px;">
-                                                        <span class="iconfont iconbook-edit"></span>
+                                                        style="border-radius: 8px 0px 0px 8px;" aria-label="编辑">
+                                                        <span class="iconfont icon-xiugai"></span>
                                                     </button>
                                                     <button class="delete_quick" value="2"
-                                                        style="border-radius: 0px 8px 8px 0px;">
-                                                        <span class="iconfont icondelete"></span>
+                                                        style="border-radius: 0px 8px 8px 0px;" aria-label="删除">
+                                                        <span class="iconfont icon-delete"></span>
                                                     </button>
                                                 </div>
                                             </div>
@@ -460,8 +445,24 @@
                                                             <input type="radio" id="radio5" class="set-wallpaper"
                                                                 name="wallpaper-type" value="5" style="display: none;">
                                                             <label class="form-radio-label" for="radio5">
-                                                                ？？？
+                                                                随机猫片
                                                             </label>
+                                                        </div>
+                                                        <div class="form-radio">
+                                                            <input type="radio" id="radio6" class="set-wallpaper"
+                                                                name="wallpaper-type" value="6" style="display: none;">
+                                                            <label class="form-radio-label" for="radio6">
+                                                                自定义 URL
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div id="wallpaper_url" style="display: none;">
+                                                        <div class="from_items">
+                                                            <div class="from_text">地址</div>
+                                                            <input type="url" id="wallpaper-url" placeholder="输入壁纸图片 URL（https://...）" autocomplete="off">
+                                                        </div>
+                                                        <div class="from_items button" style="margin-top: 10px;">
+                                                            <div class="wallpaper_save">保存</div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -501,7 +502,7 @@
                     document.write('  ' + (new Date()).getFullYear())
                 </script>&nbsp;<a href="https://imsyy.top">Little Gao Studio</a>&nbsp;&amp;&nbsp;
                 <!-- 以下信息请不要修改哦 -->
-                Power&nbsp;by&nbsp;<a href="https://github.com/imsyy/Snavigation" target="_blank">imsyy</a>
+                Power&nbsp;by&nbsp;<a href="https://github.com/imsyy/Snavigation" target="_blank" rel="noopener noreferrer">imsyy</a>
             </div>
         </div>
     </section>
@@ -511,9 +512,11 @@
         <div class="noscript fixed-top">请开启 JavaScript</div>
     </noscript>
     <!-- JS -->
-    <script type="text/javascript" src="./js/main.js"></script>
-    <script type="text/javascript" src="./js/set.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/izitoast/1.4.0/js/iziToast.min.js"></script>
     <script type="text/javascript" src="./js/js.cookie.js"></script>
+    <script type="text/javascript" src="./js/set.js"></script>
+    <script type="text/javascript" src="./js/main.js"></script>
 </body>
 
 </html>

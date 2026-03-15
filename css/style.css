@@ -62,10 +62,10 @@ section {
 .bg-all {
     z-index: 0;
     position: absolute;
-    top: calc(0px + 0px);
+    top: 0;
     left: 0;
     width: 100%;
-    height: calc(100% - 0px);
+    height: 100%;
     transition: .25s;
 }
 
@@ -117,11 +117,7 @@ img.error {
 .sou {
     max-width: 680px;
     width: calc(100% - 60px);
-    animation: fade;
-    -webkit-animation: fade 0.5s;
-    -moz-animation: fade 0.5s;
-    -o-animation: fade 0.5s;
-    -ms-animation: fade 0.5s;
+    animation: fade 0.5s;
     /* transform: translateY(-150%); */
 }
 
@@ -195,10 +191,6 @@ img.error {
 #point {
     margin: 0px 4px;
     animation: fadenum 2s infinite;
-    -webkit-animation: fadenum 2s infinite;
-    -moz-animation: fadenum 2s infinite;
-    -o-animation: fadenum 2s linear infinite;
-    -ms-animation: fadenum 2s linear infinite;
 }
 
 #time_text {
@@ -233,6 +225,46 @@ img.error {
     opacity: 0.8;
     font-size: 1.10rem;
     text-shadow: var(--main-text-shadow);
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.weather:hover {
+    opacity: 1;
+}
+
+.wea-city {
+    margin-left: 6px;
+    font-size: 0.85em;
+    opacity: 0.7;
+}
+
+.wea-city:not(:empty)::before {
+    content: '·';
+    margin-right: 4px;
+}
+
+.weather-detail {
+    display: flex;
+    gap: 14px;
+    margin-top: 6px;
+    opacity: 0.7;
+    font-size: 0.85rem;
+    color: #efefef;
+    text-shadow: var(--main-text-shadow);
+    animation: fade 0.5s ease;
+    will-change: opacity, height;
+}
+
+.wea-detail-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.wea-detail-item i {
+    font-size: 0.9em;
+    opacity: 0.8;
 }
 
 /*搜索框*/
@@ -246,11 +278,7 @@ img.error {
     background: none;
     display: flex;
     justify-content: center;
-    animation: fade;
-    -webkit-animation: fade 0.5s;
-    -moz-animation: fade 0.5s;
-    -o-animation: fade 0.5s;
-    -ms-animation: fade 0.5s;
+    animation: fade 0.5s;
 }
 
 .wd::-webkit-input-placeholder {
@@ -355,11 +383,7 @@ img.error {
     border-radius: 8px;
     display: none;
     z-index: 999;
-    animation: fade;
-    -webkit-animation: fade 0.5s;
-    -moz-animation: fade 0.5s;
-    -o-animation: fade 0.5s;
-    -ms-animation: fade 0.5s;
+    animation: fade 0.5s;
 }
 
 .search-engine-list {
@@ -374,10 +398,8 @@ img.error {
 
 .se-li {
     flex: 1;
-    width: 23%;
     min-width: 23%;
     max-width: 23%;
-    width: 100%;
     padding: 8px 0px;
     margin: 1%;
     border-radius: 8px;
@@ -422,22 +444,14 @@ img.error {
     z-index: 999;
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
-    animation: down;
-    -webkit-animation: down 0.5s;
-    -moz-animation: down 0.5s;
-    -o-animation: down 0.5s;
-    -ms-animation: down 0.5s;
+    animation: down 0.5s;
 }
 
 .keyword {
     padding: 6px 12px;
     border-radius: 8px;
     transition: 0.3s;
-    animation: fade;
-    -webkit-animation: fade 0.5s;
-    -moz-animation: fade 0.5s;
-    -o-animation: fade 0.5s;
-    -ms-animation: fade 0.5s;
+    animation: fade 0.5s;
 }
 
 .keyword i {
@@ -448,12 +462,10 @@ img.error {
 .keyword:hover,
 .keyword.choose {
     cursor: pointer;
-    /* font-weight: bold; */
     transition: 0.3s;
     text-indent: 10px;
     border-radius: 8px;
     background-color: var(--main-background-hover-color);
-    border-radius: 8px;
 }
 
 /*书签及设置*/
@@ -467,15 +479,10 @@ img.error {
     max-height: 400px;
     width: 80%;
     max-width: 900px;
-    max-width: 900px;
     position: absolute;
     margin-top: 200px;
     z-index: 2000;
-    animation: fade;
-    -webkit-animation: fade 0.75s;
-    -moz-animation: fade 0.75s;
-    -o-animation: fade 0.75s;
-    -ms-animation: fade 0.75s;
+    animation: fade 0.75s;
 }
 
 .mark .tab,
@@ -530,11 +537,7 @@ img.error {
     width: 100%;
     /* overflow: auto; */
     flex-wrap: wrap;
-    animation: fade;
-    -webkit-animation: fade 0.5s;
-    -moz-animation: fade 0.5s;
-    -o-animation: fade 0.5s;
-    -ms-animation: fade 0.5s;
+    animation: fade 0.5s;
 }
 
 .products .mainCont.selected,
@@ -603,14 +606,9 @@ img.error {
     top: 8px;
     z-index: 2000000;
     cursor: pointer;
-    transition: 0.5s;
     border-radius: 8px;
     transition: 0.3s;
-    animation: fade;
-    -webkit-animation: fade 1s;
-    -moz-animation: fade 1s;
-    -o-animation: fade 1s;
-    -ms-animation: fade 1s;
+    animation: fade 1s;
 }
 
 #menu:hover {
@@ -728,11 +726,7 @@ img.error {
 .se_add_preinstalls,
 .quick_list,
 .add_content {
-    animation: fade;
-    -webkit-animation: fade 0.5s;
-    -moz-animation: fade 0.5s;
-    -o-animation: fade 0.5s;
-    -ms-animation: fade 0.5s;
+    animation: fade 0.5s;
 }
 
 /*表单内容*/
@@ -797,6 +791,7 @@ input::-webkit-inner-spin-button {
 
 input[type="number"] {
     -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 /*快捷方式和搜索引擎设置*/
@@ -870,11 +865,7 @@ input[type="number"] {
 
 #wallpaper_url {
     margin: 10px 0px;
-    animation: fade;
-    -webkit-animation: fade 0.5s;
-    -moz-animation: fade 0.5s;
-    -o-animation: fade 0.5s;
-    -ms-animation: fade 0.5s;
+    animation: fade 0.5s;
 }
 
 #wallpaper_text {
@@ -1037,14 +1028,23 @@ input[type="radio"]:checked+label {
     color: #000000b3;
 }
 
-::-webkit-selection {
-    background: #00000040;
-    color: #000000b3;
-}
-
 .from_items input::selection {
     background: #ffffff60;
     color: #ffffffb3;
+}
+
+/*noscript提示*/
+.noscript.fixed-top {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 12px;
+    background: #e74c3c;
+    color: #fff;
+    text-align: center;
+    font-size: 1.1rem;
+    z-index: 9999999;
 }
 
 /*关闭块*/

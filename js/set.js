@@ -14,6 +14,66 @@ github：https://github.com/imsyy/sou2
 日期：2022-03-10
 */
 
+// HTML 转义工具函数，防止 XSS
+function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#039;');
+}
+
+// URL 验证函数
+function isValidUrl(str) {
+    try {
+        var url = new URL(str);
+        return url.protocol === 'https:' || url.protocol === 'http:';
+    } catch (e) {
+        return false;
+    }
+}
+
+// ============================================
+// 存储层：localStorage 优先，自动迁移旧 Cookie 数据
+// ============================================
+var Storage = {
+    get: function (key) {
+        var val = localStorage.getItem(key);
+        if (val !== null) return val;
+        // 兼容迁移：若 localStorage 无数据则尝试从 Cookie 读取
+        var cookieVal = Cookies.get(key);
+        if (cookieVal !== undefined) {
+            localStorage.setItem(key, cookieVal);
+            Cookies.remove(key);
+            return cookieVal;
+        }
+        return null;
+    },
+    set: function (key, value) {
+        if (typeof value === 'object') {
+            value = JSON.stringify(value);
+        }
+        localStorage.setItem(key, value);
+        // 清理同名旧 Cookie
+        if (Cookies.get(key) !== undefined) {
+            Cookies.remove(key);
+        }
+    },
+    remove: function (key) {
+        localStorage.removeItem(key);
+        Cookies.remove(key);
+    },
+    getAll: function () {
+        var result = {};
+        for (var i = 0; i < localStorage.length; i++) {
+            var key = localStorage.key(i);
+            result[key] = localStorage.getItem(key);
+        }
+        return result;
+    }
+};
+
 // 默认搜索引擎列表
 var se_list_preinstall = {
     '1': {
@@ -65,21 +125,23 @@ var quick_list_preinstall = {
 
 // 获取搜索引擎列表
 function getSeList() {
-    var se_list_local = Cookies.get('se_list');
+    var se_list_local = Storage.get('se_list');
     if (se_list_local !== "{}" && se_list_local) {
-        return JSON.parse(se_list_local);
-    } else {
-        setSeList(se_list_preinstall);
-        return se_list_preinstall;
+        try {
+            return JSON.parse(se_list_local);
+        } catch (e) {
+            console.warn('se_list 数据损坏，已重置:', e);
+            Storage.remove('se_list');
+        }
     }
+    setSeList(se_list_preinstall);
+    return se_list_preinstall;
 }
 
 // 设置搜索引擎列表
 function setSeList(se_list) {
     if (se_list) {
-        Cookies.set('se_list', se_list, {
-            expires: 36500
-        });
+        Storage.set('se_list', se_list);
         return true;
     }
     return false;
@@ -87,7 +149,7 @@ function setSeList(se_list) {
 
 // 获得默认搜索引擎
 function getSeDefault() {
-    var se_default = Cookies.get('se_default');
+    var se_default = Storage.get('se_default');
     return se_default ? se_default : "1";
 }
 
@@ -99,38 +161,37 @@ var bg_img_preinstall = {
 
 // 获取背景图片
 function getBgImg() {
-    var bg_img_local = Cookies.get('bg_img');
+    var bg_img_local = Storage.get('bg_img');
     if (bg_img_local && bg_img_local !== "{}") {
-        return JSON.parse(bg_img_local);
-    } else {
-        setBgImg(bg_img_preinstall);
-        return bg_img_preinstall;
+        try {
+            return JSON.parse(bg_img_local);
+        } catch (e) {
+            console.warn('bg_img 数据损坏，已重置:', e);
+            Storage.remove('bg_img');
+        }
     }
+    setBgImg(bg_img_preinstall);
+    return bg_img_preinstall;
 }
 
 // 设置背景图片
 function setBgImg(bg_img) {
     if (bg_img) {
-        Cookies.set('bg_img', bg_img, {
-            expires: 36500
-        });
+        Storage.set('bg_img', bg_img);
         return true;
     }
     return false;
 }
 
 // 设置-壁纸
-//$('#bg').attr('src','https://api.dujin.org/bing/1920.php')
 function setBgImgInit() {
     var bg_img = getBgImg();
     $("input[name='wallpaper-type'][value=" + bg_img["type"] + "]").click();
     if (bg_img["type"] === "6") {
         $("#wallpaper-url").val(bg_img["path"]);
-        $("#wallpaper-button").fadeIn(100);
         $("#wallpaper_url").fadeIn(100);
     } else {
         $("#wallpaper_url").fadeOut(300);
-        $("#wallpaper-button").fadeOut(300);
     }
 
     switch (bg_img["type"]) {
@@ -150,16 +211,21 @@ function setBgImgInit() {
             $('#bg').attr('src', pictures[rd]) //随机默认壁纸
             break;
         case "2":
-            $('#bg').attr('src', 'https://api.dujin.org/bing/1920.php') //必应每日
+            $('#bg').attr('src', 'https://bing.biturl.top/?resolution=1920&format=image&index=0&mkt=zh-CN') //必应每日
             break;
         case "3":
-            $('#bg').attr('src', 'https://api.ixiaowai.cn/gqapi/gqapi.php') //随机风景
+            $('#bg').attr('src', 'https://picsum.photos/1920/1080') //随机风景（Lorem Picsum）
             break;
         case "4":
-            $('#bg').attr('src', 'https://api.ixiaowai.cn/api/api.php') //随机二次元
+            $('#bg').attr('src', 'https://t.mwm.moe/fj') //随机二次元（樱花 API）
             break;
         case "5":
-            $('#bg').attr('src', 'https://sex.nyan.xyz/api/v2/img') //自定义
+            $('#bg').attr('src', 'https://t.mwm.moe/mp') //随机猫片
+            break;
+        case "6":
+            if (bg_img["path"]) {
+                $('#bg').attr('src', bg_img["path"]);
+            }
             break;
     }
 }
@@ -178,35 +244,37 @@ function blurWd() {
     $("#keywords").hide();
 }
 
-// 搜索建议提示
+// 搜索建议提示（带防抖）
+var _keywordTimer = null;
+var _jsonpSeqId = 0;
 function keywordReminder() {
+    clearTimeout(_keywordTimer);
+    _keywordTimer = setTimeout(_doKeywordReminder, 250);
+}
+function _doKeywordReminder() {
     var keyword = $(".wd").val();
-    if (keyword != "") {
+    if (keyword !== "") {
+        var currentSeq = ++_jsonpSeqId;
         $.ajax({
-            url: 'https://suggestion.baidu.com/su?wd=' + keyword,
+            url: 'https://suggestion.baidu.com/su?wd=' + encodeURIComponent(keyword),
             dataType: 'jsonp',
-            jsonp: 'cb', //回调函数的参数名(键值)key
+            jsonp: 'cb',
             success: function (data) {
+                if (currentSeq !== _jsonpSeqId) return; // 忽略过时的响应
                 //获取宽度
                 $("#keywords").css("width", $('.sou').width());
                 $("#keywords").empty().show();
                 $.each(data.s, function (i, val) {
-                    $('#keywords').append(`<div class="keyword" data-id="${i + 1}"><i class='iconfont icon-sousuo'></i>${val}</div>`);
+                    $('#keywords').append(`<div class="keyword" data-id="${i + 1}"><i class='iconfont icon-sousuo'></i>${escapeHtml(val)}</div>`);
                 });
-                $("#keywords").attr("data-length", data.s["length"]);
-                $(".keyword").click(function () {
-                    $(".wd").val($(this).text());
-                    $("#search-submit").click();
-                });
+                $("#keywords").attr("data-length", data.s.length);
             },
             error: function () {
-                $("#keywords").empty().show();
-                $("#keywords").hide();
+                $("#keywords").empty().hide();
             }
         })
     } else {
-        $("#keywords").empty().show();
-        $("#keywords").hide();
+        $("#keywords").empty().hide();
     }
 }
 
@@ -236,8 +304,12 @@ function seList() {
     var html = "";
     var se_list = getSeList();
     for (var i in se_list) {
-        html += `<div class='se-li' data-url='${se_list[i]["url"]}' data-name='${se_list[i]["name"]}' data-icon='${se_list[i]["icon"]}'>
-        <a class='se-li-text'><i id='icon-sou-list' class='${se_list[i]["icon"]}'></i><span>${se_list[i]["title"]}</span></a></div>`;
+        var safeTitle = escapeHtml(se_list[i]["title"]);
+        var safeUrl = escapeHtml(se_list[i]["url"]);
+        var safeName = escapeHtml(se_list[i]["name"]);
+        var safeIcon = escapeHtml(se_list[i]["icon"]);
+        html += `<div class='se-li' data-url='${safeUrl}' data-name='${safeName}' data-icon='${safeIcon}'>
+        <a class='se-li-text'><i class='icon-sou-list ${safeIcon}'></i><span>${safeTitle}</span></a></div>`;
     }
     $(".search-engine-list").html(html);
 }
@@ -248,18 +320,20 @@ function setSeInit() {
     var se_list = getSeList();
     var html = "";
     for (var i in se_list) {
-        var tr = `<div class='se_list_div'><div class='se_list_num'>${i}</div>`;
+        var safeKey = escapeHtml(i);
+        var safeTitle = escapeHtml(se_list[i]["title"]);
+        var tr = `<div class='se_list_div'><div class='se_list_num'>${safeKey}</div>`;
         if (i === se_default) {
             tr = `<div class='se_list_div'><div class='se_list_num'>
             <i class='iconfont icon-home'></i></div>`;
         }
-        tr += `<div class='se_list_name'>${se_list[i]["title"]}</div>
+        tr += `<div class='se_list_name'>${safeTitle}</div>
         <div class='se_list_button'>
-        <button class='set_se_default' value='${i}' style='border-radius: 8px 0px 0px 8px;'>
+        <button class='set_se_default' value='${safeKey}' style='border-radius: 8px 0px 0px 8px;'>
         <i class='iconfont icon-home'></i></button>
-        <button class='edit_se' value='${i}'>
+        <button class='edit_se' value='${safeKey}'>
         <i class='iconfont icon-xiugai'></i></button>
-        <button class='delete_se' value='${i}' style='border-radius: 0px 8px 8px 0px;'>
+        <button class='delete_se' value='${safeKey}' style='border-radius: 0px 8px 8px 0px;'>
         <i class='iconfont icon-delete'></i></button></div>
         </div>`;
         html += tr;
@@ -269,21 +343,23 @@ function setSeInit() {
 
 // 获取快捷方式列表
 function getQuickList() {
-    var quick_list_local = Cookies.get('quick_list');
+    var quick_list_local = Storage.get('quick_list');
     if (quick_list_local !== "{}" && quick_list_local) {
-        return JSON.parse(quick_list_local);
-    } else {
-        setQuickList(quick_list_preinstall);
-        return quick_list_preinstall;
+        try {
+            return JSON.parse(quick_list_local);
+        } catch (e) {
+            console.warn('quick_list 数据损坏，已重置:', e);
+            Storage.remove('quick_list');
+        }
     }
+    setQuickList(quick_list_preinstall);
+    return quick_list_preinstall;
 }
 
 // 设置快捷方式列表
 function setQuickList(quick_list) {
     if (quick_list) {
-        Cookies.set('quick_list', quick_list, {
-            expires: 36500
-        });
+        Storage.set('quick_list', quick_list);
         return true;
     }
     return false;
@@ -294,8 +370,11 @@ function quickData() {
     var html = "";
     var quick_list = getQuickList();
     for (var i in quick_list) {
+        var safeTitle = escapeHtml(quick_list[i]['title']);
+        var rawUrl = quick_list[i]['url'];
+        var safeUrl = isValidUrl(rawUrl) ? escapeHtml(rawUrl) : '#';
         html += `<div class="quick">
-                    <a href="${quick_list[i]['url']}" target="_blank">${quick_list[i]['title']}</a>
+                    <a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeTitle}</a>
                 </div>`;
     }
     $(".quick-all").html(html + `<div class="quick"><a id="set-quick"><i class="iconfont icon-tianjia-"></i></a></div>`);
@@ -306,14 +385,16 @@ function setQuickInit() {
     var quick_list = getQuickList();
     var html = "";
     for (var i in quick_list) {
-        tr = `
+        var safeKey = escapeHtml(i);
+        var safeTitle = escapeHtml(quick_list[i]['title']);
+        var tr = `
         <div class='quick_list_div'>
-            <div class='quick_list_div_num'>${i}</div>
-            <div class='quick_list_div_name'>${quick_list[i]['title']}</div>
+            <div class='quick_list_div_num'>${safeKey}</div>
+            <div class='quick_list_div_name'>${safeTitle}</div>
             <div class='quick_list_div_button'>
-                <button class='edit_quick' value='${i}' style='border-radius: 8px 0px 0px 8px;'>
+                <button class='edit_quick' value='${safeKey}' style='border-radius: 8px 0px 0px 8px;'>
                 <i class='iconfont icon-xiugai'></i></button>
-                <button class='delete_quick' value='${i}' style='border-radius: 0px 8px 8px 0px;'>
+                <button class='delete_quick' value='${safeKey}' style='border-radius: 0px 8px 8px 0px;'>
                 <i class='iconfont icon-delete'></i></button>
             </div>
         </div>`;
@@ -328,16 +409,19 @@ function setQuickInit() {
  * @param text     内容
  */
 function download(filename, text) {
+    var blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
     var element = document.createElement('a');
-    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
-    element.setAttribute('download', filename);
-
+    element.href = url;
+    element.download = filename;
     element.style.display = 'none';
     document.body.appendChild(element);
-
-    element.click();
-
-    document.body.removeChild(element);
+    try {
+        element.click();
+    } finally {
+        document.body.removeChild(element);
+        URL.revokeObjectURL(url);
+    }
 }
 
 // 打开设置
@@ -476,24 +560,13 @@ $(document).ready(function () {
 
     // 时间点击
     $("#time_text").click(function () {
-        if ($("#content").attr("class") === "box") {
+        if ($("#content").hasClass('box')) {
             closeBox();
             closeSet();
             blurWd();
         } else {
             openBox();
         }
-    });
-
-    // 搜索引擎列表点击
-    $(".search-engine-list").on("click", ".se-li", function () {
-        var url = $(this).attr('data-url');
-        var name = $(this).attr('data-name');
-        var icon = $(this).attr('data-icon');
-        $(".search").attr("action", url);
-        $(".wd").attr("name", name);
-        $("#icon-se").attr("class", icon);
-        $(".search-engine").slideUp(160);
     });
 
     // 搜索引擎列表点击
@@ -545,22 +618,20 @@ $(document).ready(function () {
     });
 
     // 点击自动提示的搜索建议
-    $("#keywords").on("click", ".wd", function () {
+    $("#keywords").on("click", ".keyword", function () {
         var wd = $(this).text();
         $(".wd").val(wd);
-        $(".search").submit();
-        //隐藏输入
-        $(".wd").val("");
-        $("#keywords").hide();
+        $("#search-submit").click();
     });
 
     // 自动提示键盘方向键选择操作
     $(".wd").keydown(function (event) { //上下键获取焦点
         var key = event.keyCode;
-        if ($.trim($(this).val()).length === 0) return;
+        if ($(this).val().trim().length === 0) return;
 
         var id = $(".choose").attr("data-id");
         if (id === undefined) id = 0;
+        id = parseInt(id, 10);
 
         if (key === 38) {
             /*向上按钮*/
@@ -571,7 +642,8 @@ $(document).ready(function () {
         } else {
             return;
         }
-        var length = $("#keywords").attr("data-length");
+        var length = parseInt($("#keywords").attr("data-length"), 10);
+        if (isNaN(length) || length === 0) return;
         if (id > length) id = 1;
         if (id < 1) id = length;
 
@@ -581,7 +653,7 @@ $(document).ready(function () {
 
     // 菜单点击
     $("#menu").click(function () {
-        if ($(this).attr("class") === "on") {
+        if ($(this).hasClass('on')) {
             closeSet();
         } else {
             openSet();
@@ -608,14 +680,12 @@ $(document).ready(function () {
     // 修改默认搜索引擎
     $(".se_list_table").on("click", ".set_se_default", function () {
         var name = $(this).val();
-        Cookies.set('se_default', name, {
-            expires: 36500
-        });
         iziToast.show({
             timeout: 8000,
             message: '是否设置为默认搜索引擎？',
             buttons: [
                 ['<button>确认</button>', function (instance, toast) {
+                    Storage.set('se_default', name);
                     setSeInit();
                     instance.hide({
                         transitionOut: 'flipOutX',
@@ -651,7 +721,6 @@ $(document).ready(function () {
         var title = $(".se_add_content input[name='title']").val();
         var url = $(".se_add_content input[name='url']").val();
         var name = $(".se_add_content input[name='name']").val();
-        //var icon = $(".se_add_content input[name='icon']").val();
         var icon = "iconfont icon-wangluo";
 
         var num = /^\+?[1-9][0-9]*$/;
@@ -659,6 +728,14 @@ $(document).ready(function () {
             iziToast.show({
                 timeout: 2000,
                 message: '序号 ' + key + ' 不是正整数'
+            });
+            return;
+        }
+
+        if (!url || !isValidUrl(url)) {
+            iziToast.show({
+                timeout: 2000,
+                message: '请输入有效的搜索引擎 URL（以 http/https 开头）'
             });
             return;
         }
@@ -789,9 +866,7 @@ $(document).ready(function () {
             buttons: [
                 ['<button>确认</button>', function (instance, toast) {
                     setSeList(se_list_preinstall);
-                    Cookies.set('se_default', 1, {
-                        expires: 36500
-                    });
+                    Storage.set('se_default', '1');
                     setSeInit();
                     instance.hide({
                         transitionOut: 'flipOutX',
@@ -838,12 +913,20 @@ $(document).ready(function () {
             return;
         }
 
+        if (!url || !isValidUrl(url)) {
+            iziToast.show({
+                timeout: 2000,
+                message: '请输入有效的 URL（以 http/https 开头）'
+            });
+            return;
+        }
+
         var quick_list = getQuickList();
 
         if (quick_list[key]) {
             iziToast.show({
                 timeout: 8000,
-                message: '快捷方式 " + key + " 已有数据，是否覆盖？',
+                message: '快捷方式 ' + key + ' 已有数据，是否覆盖？',
                 buttons: [
                     ['<button>确认</button>', function (instance, toast) {
                         quick_list[key] = {
@@ -874,7 +957,7 @@ $(document).ready(function () {
             return;
         }
 
-        if (key_inhere && key != key_inhere) {
+        if (key_inhere && key !== key_inhere) {
             delete quick_list[key_inhere];
         }
 
@@ -986,52 +1069,56 @@ $(document).ready(function () {
         var bg_img = getBgImg();
         bg_img["type"] = type;
 
-        if (type === "1") {
-            $('#wallpaper_text').html("显示默认壁纸，刷新页面以生效");
-            setBgImg(bg_img);
-            iziToast.show({
-                message: '壁纸设置成功，刷新生效',
-            });
-        }
+        var descriptions = {
+            "1": "显示默认壁纸，刷新页面以生效",
+            "2": "显示必应每日一图，每天更新，刷新页面以生效 | API @ Bing",
+            "3": "显示随机风景照片，每次刷新更换，刷新页面以生效 | API @ Lorem Picsum",
+            "4": "显示随机二次元图片，每次刷新更换，刷新页面以生效 | API @ 樱花",
+            "5": "显示随机猫咪照片，治愈系壁纸，刷新页面以生效 | API @ 樱花",
+            "6": "使用自定义图片 URL，请在下方填入地址后保存"
+        };
 
-        if (type === "2") {
-            $('#wallpaper_text').html("显示必应每日一图，每天更新，刷新页面以生效 | API @ 缙哥哥");
-            setBgImg(bg_img);
-            iziToast.show({
-                message: '壁纸设置成功，刷新生效',
-            });
-        }
+        $('#wallpaper_text').html(descriptions[type] || "");
+        setBgImg(bg_img);
 
-        if (type === "3") {
-            $('#wallpaper_text').html("显示随机风景图，每次刷新后更换，刷新页面以生效 | API @ 小歪");
-            setBgImg(bg_img);
-            iziToast.show({
-                message: '壁纸设置成功，刷新生效',
-            });
-        }
-
-        if (type === "4") {
-            $('#wallpaper_text').html("显示随机二次元图，每次刷新后更换，刷新页面以生效 | API @ 小歪");
-            setBgImg(bg_img);
-            iziToast.show({
-                message: '壁纸设置成功，刷新生效',
-            });
-        }
-
-        if (type === "5") {
-            $('#wallpaper_text').html("???");
-            setBgImg(bg_img);
+        if (type === "6") {
+            $("#wallpaper_url").fadeIn(200);
+            // 恢复已保存的 URL
+            if (bg_img["path"]) {
+                $("#wallpaper-url").val(bg_img["path"]);
+            }
+        } else {
+            $("#wallpaper_url").fadeOut(200);
             iziToast.show({
                 message: '壁纸设置成功，刷新生效',
             });
         }
     });
 
+    // 自定义壁纸 URL 保存
+    $(".wallpaper_save").click(function () {
+        var url = $("#wallpaper-url").val();
+        if (!url || !isValidUrl(url)) {
+            iziToast.show({
+                timeout: 2000,
+                message: '请输入有效的图片 URL（以 http/https 开头）'
+            });
+            return;
+        }
+        var bg_img = getBgImg();
+        bg_img["type"] = "6";
+        bg_img["path"] = url;
+        setBgImg(bg_img);
+        iziToast.show({
+            message: '自定义壁纸设置成功，刷新生效',
+        });
+    });
+
     // 我的数据导出
     $("#my_data_out").click(function () {
-        var cookies = Cookies.get();
-        var json = JSON.stringify(cookies);
-        download("Snavigation-back-up-" + $.now() + ".json", json);
+        var allData = Storage.getAll();
+        var json = JSON.stringify(allData);
+        download("Snavigation-back-up-" + Date.now() + ".json", json);
         iziToast.show({
             timeout: 2000,
             message: '已导出备份文件至下载目录'
@@ -1080,10 +1167,40 @@ $(document).ready(function () {
                 message: '当前数据将会被覆盖！是否继续导入？',
                 buttons: [
                     ['<button>确认</button>', function (instance, toast) {
+                        // 只允许导入白名单内的数据键
+                        var allowedKeys = ['se_list', 'quick_list', 'bg_img', 'se_default'];
                         for (var key in mydata) {
-                            Cookies.set(key, mydata[key], {
-                                expires: 36500
-                            });
+                            if (allowedKeys.indexOf(key) !== -1) {
+                                // 验证导入数据中的 URL 安全性
+                                if (key === 'se_list' || key === 'quick_list') {
+                                    try {
+                                        var list = typeof mydata[key] === 'string' ? JSON.parse(mydata[key]) : mydata[key];
+                                        for (var k in list) {
+                                            if (list[k].url && !isValidUrl(list[k].url)) {
+                                                iziToast.show({ timeout: 3000, message: '导入数据包含无效 URL，已拒绝导入' });
+                                                return;
+                                            }
+                                        }
+                                    } catch (e) {
+                                        iziToast.show({ timeout: 2000, message: '导入数据格式异常' });
+                                        return;
+                                    }
+                                }
+                                // 验证 bg_img 中的 URL
+                                if (key === 'bg_img') {
+                                    try {
+                                        var bgData = typeof mydata[key] === 'string' ? JSON.parse(mydata[key]) : mydata[key];
+                                        if (bgData.path && !isValidUrl(bgData.path)) {
+                                            iziToast.show({ timeout: 3000, message: '导入壁纸 URL 无效，已拒绝导入' });
+                                            return;
+                                        }
+                                    } catch (e) {
+                                        iziToast.show({ timeout: 2000, message: '壁纸数据格式异常' });
+                                        return;
+                                    }
+                                }
+                                Storage.set(key, mydata[key]);
+                            }
                         }
                         instance.hide({
                             transitionOut: 'flipOutX',
@@ -1100,9 +1217,6 @@ $(document).ready(function () {
                         instance.hide({
                             transitionOut: 'flipOutX',
                         }, toast, 'buttonName');
-                        setTimeout(function () {
-                            window.location.reload()
-                        }, 1000);
                     }]
                 ]
             });

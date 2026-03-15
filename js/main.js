@@ -22,9 +22,42 @@ window.addEventListener('load', function () {
         layout: '1'
     });
     setTimeout(function () {
+        // 根据当前时间计算问候语（在回调中计算，避免跨小时打开时问候语过时）
+        var now = new Date(), hour = now.getHours();
+        var hello;
+        if (hour < 6) {
+            hello = "凌晨好";
+        } else if (hour < 9) {
+            hello = "早上好";
+        } else if (hour < 12) {
+            hello = "上午好";
+        } else if (hour < 14) {
+            hello = "中午好";
+        } else if (hour < 17) {
+            hello = "下午好";
+        } else if (hour < 19) {
+            hello = "傍晚好";
+        } else if (hour < 22) {
+            hello = "晚上好";
+        } else {
+            hello = "夜深了";
+        }
+
+        // 构建带天气的欢迎信息
+        var greetMsg = '欢迎来到 Snavigation';
+        if (window._weatherData && window._weatherData.current) {
+            var cur = window._weatherData.current;
+            var weatherBrief = '';
+            if (cur.cap) weatherBrief += cur.cap;
+            if (cur.temp !== undefined) weatherBrief += ' ' + cur.temp + '°C';
+            if (weatherBrief) greetMsg = '当前 ' + weatherBrief;
+            if (window._weatherData.location && window._weatherData.location.City) {
+                greetMsg += '（' + window._weatherData.location.City + '）';
+            }
+        }
         iziToast.show({
             title: hello,
-            message: '欢迎来到 Snavigation'
+            message: greetMsg
         });
     }, 800);
 
@@ -39,33 +72,13 @@ window.addEventListener('load', function () {
 
 }, false)
 
-//进入问候
-now = new Date(), hour = now.getHours()
-if (hour < 6) {
-    var hello = "凌晨好";
-} else if (hour < 9) {
-    var hello = "早上好";
-} else if (hour < 12) {
-    var hello = "上午好";
-} else if (hour < 14) {
-    var hello = "中午好";
-} else if (hour < 17) {
-    var hello = "下午好";
-} else if (hour < 19) {
-    var hello = "傍晚好";
-} else if (hour < 22) {
-    var hello = "晚上好";
-} else {
-    var hello = "夜深了";
-}
-
 //获取时间
 var t = null;
 t = setTimeout(time, 1000);
 
 function time() {
     clearTimeout(t);
-    dt = new Date();
+    var dt = new Date();
     var mm = dt.getMonth() + 1;
     var d = dt.getDate();
     var weekday = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -83,25 +96,174 @@ function time() {
     t = setTimeout(time, 1000);
 }
 
-//获取天气
-//每日限量 100 次
-//请前往 https://www.tianqiapi.com/index/doc?version=v6 申请（免费）
-fetch('https://yiketianqi.com/api?unescape=1&version=v6&appid=43986679&appsecret=TksqGZT7')
-    .then(response => response.json())
-    .then(data => {
-        //$('#wea_text').html(data.wea + '&nbsp;' + data.tem_night + '℃' + '&nbsp;~&nbsp;' + data.tem_day + '℃')
-        $('#wea_text').text(data.wea)
-        $('#tem1').text(data.tem1)
-        $('#tem2').text(data.tem2)
-    })
-    .catch(console.error)
+//获取天气 - 使用 MSN/Bing 公开天气 API（无需注册 API Key）
+//基于 IP 自动定位，每 30 分钟刷新一次
+(function fetchWeather() {
+    var weatherApiUrl = 'https://assets.msn.com/service/segments/recoitems/weather?'
+        + 'apikey=UhJ4G66OjyLbn9mXARgajXLiLw6V75sHnfpU60aJBB'
+        + '&ocid=weather-peregrine'
+        + '&cm=zh-cn'
+        + '&it=app'
+        + '&scn=APP_ANON'
+        + '&appId=4de6fc9f-3262-47bf-9c99-e189a8234fa2'
+        + '&wrapodata=false'
+        + '&includemapsmetadata=false'
+        + '&cuthour=true'
+        + '&days=5'
+        + '&pageOcid=anaheim-ntp-peregrine'
+        + '&source=undefined_csr'
+        + '&fdhead=prg-1sw-wxncvf'
+        + '&contentcount=1'
+        + '&region=cn'
+        + '&market=zh-cn'
+        + '&locale=zh-cn';
+
+    fetch(weatherApiUrl)
+        .then(function (response) {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
+        .then(function (items) {
+            // 从返回数组中查找天气摘要
+            var weatherItem = null;
+            if (Array.isArray(items)) {
+                for (var i = 0; i < items.length; i++) {
+                    if (items[i].type === 'WeatherSummary') {
+                        weatherItem = items[i];
+                        break;
+                    }
+                }
+            }
+            if (!weatherItem || !weatherItem.data) {
+                throw new Error('未找到天气数据');
+            }
+
+            var data;
+            try {
+                data = JSON.parse(weatherItem.data);
+            } catch (e) {
+                throw new Error('天气数据解析失败');
+            }
+
+            // 防御性检查嵌套结构
+            if (!data.responses || !data.responses[0] ||
+                !data.responses[0].weather || !data.responses[0].weather[0]) {
+                throw new Error('天气数据结构异常');
+            }
+
+            var weather = data.responses[0].weather[0];
+            var current = weather.current;
+            var today = weather.forecast && weather.forecast.days && weather.forecast.days[0]
+                ? weather.forecast.days[0].daily : null;
+
+            // 更新天气显示
+            if (current && current.cap) {
+                $('#wea_text').text(current.cap);
+            }
+            if (today) {
+                $('#tem1').text(today.tempHi);
+                $('#tem2').text(today.tempLo);
+            } else if (current) {
+                // 无预报时用当前温度填充
+                $('#tem1').text(current.temp);
+                $('#tem2').text(current.temp);
+            }
+
+            // 显示城市名称
+            if (data.userProfile && data.userProfile.location && data.userProfile.location.City) {
+                $('#wea_city').text(data.userProfile.location.City);
+            }
+
+            // 将完整天气数据缓存到 window 供后续使用
+            window._weatherData = {
+                current: current,
+                forecast: weather.forecast,
+                location: data.userProfile ? data.userProfile.location : null,
+                updatedAt: new Date().toLocaleTimeString()
+            };
+
+            // 填充详细天气信息
+            if (current) {
+                if (current.feels !== undefined) $('#wea_feels').text(current.feels);
+                if (current.rh !== undefined) $('#wea_hum').text(current.rh);
+                if (current.windSpd !== undefined) {
+                    var windText = current.windSpd + ' km/h';
+                    if (current.windDir) windText = current.windDir + '° ' + windText;
+                    $('#wea_wind').text(windText);
+                }
+                if (current.uvDesc !== undefined) {
+                    $('#wea_uv').text(current.uvDesc);
+                } else if (current.uv !== undefined) {
+                    $('#wea_uv').text(current.uv);
+                }
+            }
+            // 成功时 10 分钟后刷新
+            setTimeout(fetchWeather, 10 * 60 * 1000);
+        })
+        .catch(function (err) {
+            console.warn('MSN 天气数据获取失败:', err);
+            // 回退到 wttr.in（无需 API Key 的开源天气服务）
+            fetchWeatherFallback();
+            // 失败时 5 分钟后重试
+            setTimeout(fetchWeather, 5 * 60 * 1000);
+        });
+})();
+
+// wttr.in 备用天气源（MSN API 不可用时使用）
+function fetchWeatherFallback() {
+    fetch('https://wttr.in/?format=j1')
+        .then(function (response) {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
+        .then(function (data) {
+            if (data.current_condition && data.current_condition[0]) {
+                var cc = data.current_condition[0];
+                // 优先使用中文描述
+                var desc = cc.lang_zh && cc.lang_zh[0] ? cc.lang_zh[0].value : cc.weatherDesc[0].value;
+                $('#wea_text').text(desc);
+                $('#tem1').text(cc.temp_C);
+                $('#tem2').text(cc.temp_C);
+                // 详细天气
+                if (cc.FeelsLikeC) $('#wea_feels').text(cc.FeelsLikeC);
+                if (cc.humidity) $('#wea_hum').text(cc.humidity);
+                if (cc.windspeedKmph) {
+                    var windInfo = cc.windspeedKmph + ' km/h';
+                    if (cc.winddir16Point) windInfo = cc.winddir16Point + ' ' + windInfo;
+                    $('#wea_wind').text(windInfo);
+                }
+                if (cc.uvIndex) $('#wea_uv').text(cc.uvIndex);
+            }
+            if (data.weather && data.weather[0]) {
+                $('#tem1').text(data.weather[0].maxtempC);
+                $('#tem2').text(data.weather[0].mintempC);
+            }
+            if (data.nearest_area && data.nearest_area[0]) {
+                var area = data.nearest_area[0];
+                var city = area.areaName && area.areaName[0] ? area.areaName[0].value : '';
+                if (city) $('#wea_city').text(city);
+            }
+        })
+        .catch(function (err) {
+            console.warn('备用天气源也获取失败:', err);
+        });
+}
     
 //Tab书签页
 $(function () {
     $(".mark .tab .tab-item").click(function () {
         $(this).addClass("active").siblings().removeClass("active");
         $(".products .mainCont").eq($(this).index()).css("display", "flex").siblings().css("display", "none");
-    })
+    });
+
+    // 天气点击展开/收起详情
+    $("#weather-main").click(function () {
+        var $main = $(this);
+        $("#weather-detail").slideToggle(350, function () {
+            var expanded = $(this).is(':visible');
+            $main.attr('aria-expanded', expanded);
+        });
+    });
 })
 
 //设置
@@ -114,9 +276,9 @@ $(function () {
 
 //输入框为空时阻止跳转
 $(window).keydown(function (e) {
-    var key = window.event ? e.keyCode : e.which;
-    if (key.toString() == "13") {
-        if ($(".wd").val() == "") {
+    if (e.key === "Enter") {
+        if ($("body").hasClass("onsearch") && $(".wd").val() === "") {
+            e.preventDefault();
             return false;
         }
     }
@@ -124,8 +286,8 @@ $(window).keydown(function (e) {
 
 //点击搜索按钮
 $(".sou-button").click(function () {
-    if ($("body").attr("class") === "onsearch") {
-        if ($(".wd").val() != "") {
+    if ($("body").hasClass("onsearch")) {
+        if ($(".wd").val() !== "") {
             $("#search-submit").click();
         }
     }
@@ -133,7 +295,7 @@ $(".sou-button").click(function () {
 
 //鼠标中键点击事件
 $(window).mousedown(function (event) {
-    if (event.button == 1) {
+    if (event.button === 1 && !$(event.target).closest('a').length) {
         $("#time_text").click();
     }
 });
