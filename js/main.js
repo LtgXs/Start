@@ -315,13 +315,23 @@ $(window).keydown(function (e) {
         e.preventDefault();
         var show = $("#shortcuts-modal").is(':hidden');
         $("#shortcuts-modal").fadeToggle(120).attr('aria-hidden', show ? 'false' : 'true');
+    } else if (e.key === "h" || e.key === "H") {
+        e.preventDefault();
+        var showAlt = $("#shortcuts-modal").is(':hidden');
+        $("#shortcuts-modal").fadeToggle(120).attr('aria-hidden', showAlt ? 'false' : 'true');
     } else if (e.key === "/") {
         e.preventDefault();
         $(".wd").focus();
         if (typeof focusWd === 'function') focusWd();
     } else if (e.key === "s" || e.key === "S") {
+        var active = document.activeElement;
+        var isTyping = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+        if (isTyping) return;
         if (!$("#menu").hasClass('on')) $("#menu").trigger('click');
     } else if (e.key === "b" || e.key === "B") {
+        var activeEl = document.activeElement;
+        var typing = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+        if (typing) return;
         if ($("#menu").hasClass('on')) $("#menu").trigger('click');
         if (!$("#content").hasClass('box')) $("#time_text").trigger('click');
     }

@@ -77,7 +77,7 @@ var Storage = {
 function applyTheme(theme) {
     var isLight = theme === 'light';
     document.documentElement.classList.toggle('light-theme', isLight);
-    $("#icon-theme").text(isLight ? "☀️" : "🌙");
+    $("#icon-theme").text(isLight ? "🌙" : "☀️");
 }
 
 // 默认搜索引擎列表
