@@ -155,9 +155,42 @@ function getSeDefault() {
 
 //背景图片
 var bg_img_preinstall = {
-    "type": "1", // 1:使用主题默认的背景图片 2:关闭背景图片 3:使用自定义的背景图片
-    "path": "", //自定义图片
+    "type": "1", // 1~5:内置源 6:自定义URL
+    "path": "",  // 自定义图片 URL 模板（可含 {key} 占位符）
+    "cache": false,       // 是否缓存壁纸
+    "cacheDuration": 24,  // 缓存时长（小时）
+    "bg_fit": false,      // 比例自适应：完整显示图片，模糊填充边缘
 };
+
+// API 密钥存储键（存储于 localStorage，持久保存）
+var BG_APIKEY_SESSION_KEY = 'bg_apikey';
+// 上次显示的背景图片 URL（用于下次访问时立即展示）
+var BG_LAST_URL_KEY = 'bg_last_url';
+// 上次使用的壁纸来源类型（用于判断是否切换了来源）
+var BG_LAST_TYPE_KEY = 'bg_last_type';
+// 壁纸图片的 base64 数据缓存（确保下次访问即时显示，无需网络请求）
+var BG_IMG_DATA_KEY = 'bg_img_data';
+// base64 缓存的最大尺寸限制（约 2MB 的 base64 字符串，对应约 1.5MB 原始图片）
+var BG_IMG_DATA_MAX = 60000000;
+// 缓存时长限制（小时）
+var CACHE_DURATION_DEFAULT = 24;
+var CACHE_DURATION_MAX = 720;
+// 背景渐变过渡时长（毫秒，与 CSS 中 #bg-new 的 transition 时长保持一致）
+var BG_FADE_DURATION_MS = 1500;
+// 页面揭幕动画时长（毫秒，与 revealPage 中 transition: ease 1.5s 保持一致）
+var REVEAL_DURATION_MS = 1500;
+
+// ── 调试日志 ────────────────────────────────────────────────────
+// 设为 true 启用详细日志；或通过浏览器控制台执行 localStorage.setItem('bg_debug','1') 后刷新
+var BG_DEBUG = (function () {
+    try { return localStorage.getItem('bg_debug') === '1'; } catch (e) { return true; }
+})();
+function bgLog() {
+    if (!BG_DEBUG) return;
+    var args = Array.prototype.slice.call(arguments);
+    args[0] = '[bg:' + (performance.now ? performance.now().toFixed(0) : '0') + 'ms] ' + args[0];
+    console.log.apply(console, args);
+}
 
 // 获取背景图片
 function getBgImg() {
@@ -183,51 +216,687 @@ function setBgImg(bg_img) {
     return false;
 }
 
-// 设置-壁纸
+// 获取/保存/清除 API 密钥（存于 localStorage，持久保存）
+// 注意：localStorage 为明文存储，适用于个人使用场景；如需更高安全性请勿在公共设备上使用
+function getBgApiKey() {
+    return localStorage.getItem(BG_APIKEY_SESSION_KEY) || '';
+}
+function setBgApiKey(key) {
+    if (key) {
+        localStorage.setItem(BG_APIKEY_SESSION_KEY, key);
+    }
+}
+function clearBgApiKey() {
+    localStorage.removeItem(BG_APIKEY_SESSION_KEY);
+}
+
+// 获取/保存上次显示的背景图片 URL
+function getLastBgUrl() {
+    var v = localStorage.getItem(BG_LAST_URL_KEY) || '';
+    bgLog('getLastBgUrl() =', (v ? v.substring(0, 80) + (v.length > 80 ? '...' : '') : '(空)'));
+    return v;
+}
+function setLastBgUrl(url) {
+    if (url) {
+        bgLog('setLastBgUrl() 写入:', url.substring(0, 80) + (url.length > 80 ? '...' : ''));
+        localStorage.setItem(BG_LAST_URL_KEY, url);
+    }
+}
+
+// 获取/保存上次使用的壁纸来源类型
+function getLastBgType() {
+    var v = localStorage.getItem(BG_LAST_TYPE_KEY) || '';
+    bgLog('getLastBgType() =', v || '(空)');
+    return v;
+}
+function setLastBgType(type) {
+    if (type) {
+        bgLog('setLastBgType() =', type);
+        localStorage.setItem(BG_LAST_TYPE_KEY, type);
+    }
+}
+
+// 获取缓存的壁纸 base64 数据（用于即时显示，无需网络）
+function getCachedBgData() {
+    try {
+        var raw = localStorage.getItem(BG_IMG_DATA_KEY);
+        if (!raw) { bgLog('getCachedBgData() = null (localStorage 中无数据)'); return null; }
+        if (raw.indexOf('data:image/') !== 0) { bgLog('getCachedBgData() = null (非有效 data URL, 前20字符:', raw.substring(0,20)+')'); return null; }
+        bgLog('getCachedBgData() 命中! 长度:', raw.length, 'chars, 开头:', raw.substring(0,50)+'...');
+        return raw;
+    } catch (e) {
+        bgLog('getCachedBgData() 异常:', e);
+        return null;
+    }
+}
+
+// 保存壁纸 base64 数据到 localStorage
+function setCachedBgData(dataUrl) {
+    if (!dataUrl || dataUrl.indexOf('data:image/') !== 0) {
+        bgLog('setCachedBgData() 跳过 (无效 data URL)');
+        return;
+    }
+    if (dataUrl.length > BG_IMG_DATA_MAX) {
+        bgLog('setCachedBgData() 跳过 (过大:', (dataUrl.length/1000000).toFixed(1), 'MB > 限制', (BG_IMG_DATA_MAX/1000000).toFixed(0), 'MB)');
+        console.warn('[bg cache] base64 数据过大，跳过缓存 (' + (dataUrl.length / 1000000).toFixed(1) + 'MB)');
+        return;
+    }
+    try {
+        localStorage.setItem(BG_IMG_DATA_KEY, dataUrl);
+        bgLog('setCachedBgData() 成功! 长度:', dataUrl.length, 'chars (', (dataUrl.length/1000000).toFixed(2), 'MB)');
+    } catch (e) {
+        bgLog('setCachedBgData() 写入失败:', e.message, '| 清理后重试...');
+        console.warn('[bg cache] 保存 base64 失败，清理后重试:', e);
+        try { localStorage.removeItem(BG_IMG_DATA_KEY); } catch (e2) {}
+    }
+}
+
+// 清除壁纸 base64 缓存
+function clearCachedBgData() {
+    bgLog('clearCachedBgData() 清除 base64 缓存');
+    try { localStorage.removeItem(BG_IMG_DATA_KEY); } catch (e) {}
+}
+
+// 将已加载的 Image 对象转为 base64 data URL（Canvas 压缩）
+function imageToBase64(img) {
+    try {
+        var w = img.naturalWidth || img.width;
+        var h = img.naturalHeight || img.height;
+        bgLog('imageToBase64() 原始尺寸:', w+'x'+h);
+        if (!w || !h) { bgLog('imageToBase64() 失败: 尺寸无效'); return null; }
+        var canvas = document.createElement('canvas');
+        var maxW = 1920;
+        var scale = Math.min(1, maxW / w);
+        canvas.width = Math.round(w * scale);
+        canvas.height = Math.round(h * scale);
+        bgLog('imageToBase64() Canvas:', canvas.width+'x'+canvas.height, '(scale:', scale.toFixed(2)+')');
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        var result = canvas.toDataURL('image/jpeg', 0.8);
+        bgLog('imageToBase64() 成功! 结果长度:', result.length, 'chars');
+        return result;
+    } catch (e) {
+        bgLog('imageToBase64() 失败 (可能跨域):', e.message || e);
+        console.warn('[bg cache] 图片无法转为 base64（可能跨域）:', e.message || e);
+        return null;
+    }
+}
+
+// 将 data URL 压缩后存入缓存（通过 Canvas resize + JPEG 编码）
+function compressAndCacheDataUrl(dataUrl, callback) {
+    bgLog('compressAndCacheDataUrl() 输入长度:', dataUrl.length, 'chars');
+    var img = new Image();
+    img.onload = function () {
+        var compressed = imageToBase64(img);
+        if (compressed) {
+            bgLog('compressAndCacheDataUrl() 压缩成功，调用 setCachedBgData');
+            setCachedBgData(compressed);
+        } else {
+            bgLog('compressAndCacheDataUrl() 压缩失败，使用原始数据');
+        }
+        callback(compressed || dataUrl);
+    };
+    img.onerror = function () {
+        bgLog('compressAndCacheDataUrl() 图片解码失败，尝试存原始数据');
+        if (dataUrl.length <= BG_IMG_DATA_MAX) setCachedBgData(dataUrl);
+        callback(dataUrl);
+    };
+    img.src = dataUrl;
+}
+
+// 设置图片 src，失败时逐级回退：url → nextFallback → ... → 终极兜底
+function setWithFallback($img, url, nextFallback) {
+    bgLog('setWithFallback() url=', (url||'').substring(0,60), '| next=', (nextFallback||'').substring(0,60));
+    if (!url) {
+        if (nextFallback) {
+            bgLog('setWithFallback() url 为空，跳至 next fallback');
+            $img.attr('src', nextFallback);
+        }
+        return;
+    }
+    var handled = false;
+    var fallback = nextFallback;
+    var oldError = $img[0].onerror;
+    $img[0].onerror = function () {
+        if (handled) return;
+        handled = true;
+        bgLog('setWithFallback() 图片加载失败! url=', url.substring(0,60), '→ 回退');
+        if (fallback && fallback !== url) {
+            setWithFallback($img, fallback, ULTIMATE_FALLBACK);
+        } else {
+            bgLog('setWithFallback() 到达终极兜底');
+            $img.attr('src', ULTIMATE_FALLBACK);
+        }
+        $img[0].onerror = oldError;
+    };
+    $img.attr('src', url);
+}
+
+// 根据 bg_img 配置构建最终壁纸 URL（替换 {key} 占位符）
+function buildBgUrl(template, apiKey) {
+    var url = template || '';
+    if (apiKey && url.indexOf('{key}') !== -1) {
+        url = url.replace(/\{key\}/g, encodeURIComponent(apiKey));
+    }
+    return url;
+}
+
+function getBgCache() {
+    var raw = localStorage.getItem('bg_img_cache');
+    if (!raw) { bgLog('getBgCache() = null (无缓存元数据)'); return null; }
+    try {
+        var c = JSON.parse(raw);
+        var valid = isBgCacheValid(c, getBgImg());
+        bgLog('getBgCache() type=', c.type, '| expires=', new Date(c.expiresAt).toISOString(), '| valid=', valid);
+        return c;
+    } catch (e) {
+        bgLog('getBgCache() 数据损坏:', e);
+        console.warn('[wallpaper cache] 缓存数据损坏，已忽略:', e);
+        return null;
+    }
+}
+
+function setBgCache(type, url, bg_img) {
+    var duration = (parseInt(bg_img["cacheDuration"], 10) || CACHE_DURATION_DEFAULT) * 3600 * 1000;
+    var cache = { type: type, url: url, expiresAt: Date.now() + duration };
+    bgLog('setBgCache() type=', type, '| expires=', new Date(cache.expiresAt).toISOString(), '| url=', (url||'').substring(0,50));
+    localStorage.setItem('bg_img_cache', JSON.stringify(cache));
+}
+
+function clearBgCache() {
+    bgLog('clearBgCache() 清除缓存元数据');
+    localStorage.removeItem('bg_img_cache');
+}
+
+function isBgCacheValid(cache, bg_img) {
+    if (!cache || !cache.url || !cache.expiresAt) { bgLog('isBgCacheValid() = false (字段缺失)'); return false; }
+    if (cache.type !== bg_img["type"]) { bgLog('isBgCacheValid() = false (类型不匹配:', cache.type, '!==', bg_img['type']+')'); return false; }
+    var valid = Date.now() < cache.expiresAt;
+    bgLog('isBgCacheValid() =', valid, '(剩余', Math.round((cache.expiresAt - Date.now())/1000/60), '分钟)');
+    return valid;
+}
+
+// 尝试通过 fetch 获取壁纸图片的实际数据并缓存为 base64，然后渲染
+// 这确保 API 返回的直接图像数据被保存到本地，下次加载即时显示
+// 返回 true 表示执行了切换操作
+function resolveRealBgUrl(type, fallbackUrl) {
+    return new Promise(function(resolve) {
+        if (type === "4" || type === "5") {
+            var jsonUrl = type === "4" ? "https://t.alcy.cc/fj/?json" : "https://t.alcy.cc/mp/?json";
+            fetch(jsonUrl, { cache: "no-store" })
+                .then(function(res) { return res.text(); })
+                .then(function(text) {
+                    text = (text || "").trim();
+                    if (text.indexOf("http") === 0) resolve(text);
+                    else resolve(fallbackUrl);
+                })
+                .catch(function() { resolve(fallbackUrl); });
+        } else if (type === "2") {
+            var bingJson = 'https://bing.biturl.top/?resolution=1920&format=json&index=0&mkt=zh-CN';
+            fetch(bingJson, { cache: "no-store" })
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (data && data.url) resolve(data.url);
+                    else resolve(fallbackUrl);
+                })
+                .catch(function() { resolve(fallbackUrl); });
+        } else {
+            resolve(fallbackUrl);
+        }
+    });
+}
+
+function applyBgWithCache(type, url, bg_img, forceRefresh, silentMode) {
+    bgLog('applyBgWithCache() 入口 type=', type, '| forceRefresh=', forceRefresh, '| silent=', !!silentMode, '| cache.enabled=', bg_img['cache']);
+    var cache = getBgCache();
+    if (!forceRefresh && bg_img["cache"] && isBgCacheValid(cache, bg_img)) {
+        bgLog('applyBgWithCache() 缓存有效 → 使用缓存');
+        var cachedData = getCachedBgData();
+        if (cachedData) {
+            bgLog('applyBgWithCache() 有 base64 缓存，直接渲染');
+            if (silentMode) { bgLog('applyBgWithCache() silentMode → 跳过渲染'); return false; }
+            return applyBgNew(cachedData, false);
+        }
+        bgLog('applyBgWithCache() 无 base64 缓存，使用缓存 URL');
+        if (silentMode) { bgLog('applyBgWithCache() silentMode → 跳过渲染'); return false; }
+        return applyBgNew(cache.url, false);
+    }
+
+    if (!bg_img["cache"] && !forceRefresh && !silentMode) {
+        bgLog('applyBgWithCache() cache关闭且非强刷非静默 → 直接 URL 渲染');
+        return applyBgNew(url, false);
+    }
+
+    bgLog('applyBgWithCache() 需要获取新数据，提前解析真实 URL...');
+    resolveRealBgUrl(type, url).then(function(realUrl) {
+        bgLog('applyBgWithCache() 目标真实地址:', realUrl);
+        var fetchUrl = forceRefresh
+            ? (realUrl + (realUrl.indexOf('?') >= 0 ? '&' : '?') + '_t=' + Date.now())
+            : realUrl;
+        fetch(fetchUrl, { method: 'GET', redirect: 'follow', cache: 'no-store' })
+        .then(function (res) {
+            bgLog('applyBgWithCache() fetch 响应:', res.status, '| content-type:', res.headers.get('content-type'), '| finalUrl:', res.url);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.blob().then(function (blob) {
+                bgLog('applyBgWithCache() blob 大小:', blob.size, 'bytes | type:', blob.type);
+                var reader = new FileReader();
+                return new Promise(function (resolve, reject) {
+                    reader.onload = function () {
+                        var dataUrl = reader.result;
+                        bgLog('applyBgWithCache() FileReader 完成，dataUrl 长度:', dataUrl.length);
+                        compressAndCacheDataUrl(dataUrl, function (compressed) {
+                            bgLog('applyBgWithCache() compress 回调，最终长度:', (compressed||dataUrl).length);
+                            resolve({ dataUrl: compressed || dataUrl, finalUrl: res.url || realUrl });
+                        });
+                    };
+                    reader.onerror = function (e) {
+                        bgLog('applyBgWithCache() FileReader 错误!', e);
+                        reject(e);
+                    };
+                    reader.readAsDataURL(blob);
+                });
+            });
+        })
+        .then(function (result) {
+            bgLog('applyBgWithCache() 成功获取数据, dataUrl 长度:', result.dataUrl.length);
+            if (bg_img["cache"]) setBgCache(type, result.finalUrl, bg_img);
+            if (silentMode) { bgLog('applyBgWithCache() silentMode → 仅缓存，不渲染'); return; }
+            applyBgNew(result.dataUrl, forceRefresh);
+        })
+        .catch(function (err) {
+            bgLog('applyBgWithCache() fetch→blob 失败!', err.message || err, '| 存在 base64?', !!getCachedBgData());
+            console.warn('[wallpaper cache] fetch/blob 失败，回退到真实静态 URL 模式:', err);
+            if (bg_img["cache"]) setBgCache(type, realUrl, bg_img);
+            if (silentMode) { bgLog('applyBgWithCache() silentMode → 回退也跳过渲染'); return; }
+            var base64Fallback = getCachedBgData();
+            if (base64Fallback && !forceRefresh) {
+                bgLog('applyBgWithCache() 回退到 base64 缓存');
+                applyBgNew(base64Fallback, false);
+            } else {
+                bgLog('applyBgWithCache() 回退到直接 URL 加载');
+                applyBgNew(realUrl, forceRefresh);
+            }
+        });
+    });
+    return true;
+}
+
+// 切换到新背景图片，若已有上次图片则渐变过渡
+// forceRefresh=true 时附加时间戳强制绕过浏览器图片缓存（适用于 refreshOnLoad 场景）
+// 返回 true 表示执行了切换，false 表示无需切换（URL 相同）
+function applyBgNew(url, forceRefresh) {
+    bgLog('applyBgNew() 入口 url=', (url||'').substring(0,80), '| forceRefresh=', forceRefresh);
+    if (!url) { bgLog('applyBgNew() 跳过: url 为空'); return false; }
+    var lastUrl = getLastBgUrl();
+    var $bg = $('#bg');
+
+    var displayUrl = url;
+    if (forceRefresh) {
+        displayUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_t=' + Date.now();
+        bgLog('applyBgNew() forceRefresh: 附加时间戳 →', displayUrl.substring(0,80));
+    }
+
+    // ── 当前 DOM 已显示相同图片 → 完全跳过 ──────────────────────
+    var currentDomSrc = ($bg[0] && $bg[0].src) || '';
+    if (!forceRefresh && currentDomSrc === displayUrl) {
+        bgLog('applyBgNew() 当前 DOM 已显示此图 → 跳过');
+        return false;
+    }
+
+    // ── 需要渐变切换 ────────────────────────────────────────────
+    // 所有其他情况一律走交叉渐变，不再做"同图直接设"优化
+    // （因为 Phase1 可能显示了兜底图，即使 lastUrl===url 也需要渐变过渡）
+    bgLog('applyBgNew() 需要渐变切换! lastUrl=', (lastUrl||'').substring(0,60), '→ newUrl=', url.substring(0,60), '| 当前DOM结尾=', currentDomSrc.slice(-30));
+    var oldLastUrl = lastUrl;
+    setLastBgUrl(url);
+
+    var $bgNew = $('#bg-new');
+    var newImg = new Image();
+    // 不设置 crossOrigin —— 确保 CORS 受限的 API（如 t.mwm.moe）也能正常加载显示
+    // base64 缓存由 cacheCurrentBgAsync 通过 fetch→blob 方式独立尝试
+    newImg.onload = function () {
+        bgLog('applyBgNew() newImg.onload 触发! naturalSize:', newImg.naturalWidth+'x'+newImg.naturalHeight);
+        var bgEl = $bg[0];
+        
+        if ($('body').hasClass('bg-fit')) {
+            $('#bg-ambient').css({ backgroundImage: 'url(' + displayUrl + ')', display: 'block', opacity: 1 });
+        }
+
+        var cs = bgEl ? window.getComputedStyle(bgEl) : null;
+        var inheritFilter    = cs ? cs.filter    : 'none';
+        var inheritTransform = cs ? cs.transform : 'none';
+        if (inheritFilter === 'none' || inheritFilter === '') inheritFilter = '';
+
+        $bgNew.attr('src', displayUrl).css({
+            display:   'block',
+            opacity:   0,
+            filter:    inheritFilter,
+            transform: inheritTransform,
+            transition: 'none'
+        });
+        bgLog('applyBgNew() #bg-new 就绪, filter:', inheritFilter, '| transform:', inheritTransform);
+
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                $bgNew.css({
+                    transition: 'opacity ' + (BG_FADE_DURATION_MS / 1000) + 's ease',
+                    opacity: 1
+                });
+                bgLog('applyBgNew() 交叉渐变开始 (opacity 0→1)');
+                setTimeout(function () {
+                    // 用 #bg-new 的实际加载结果 src（重定向后的最终 URL）
+                    // 避免重新请求 API 端点导致拿到另一张不同的图
+                    var finalSrc = $bgNew.attr('src') || displayUrl;
+                    $bg.attr('src', finalSrc);
+                    bgLog('applyBgNew() 交叉渐变完成, #bg.src =', finalSrc.substring(0,80));
+                    syncAmbientBg();
+                    $bgNew.css({ transition: 'opacity 0.3s ease', opacity: 0 });
+                    setTimeout(function () {
+                        $bgNew.css({ display: 'none', filter: '', transform: '' });
+                        bgLog('applyBgNew() #bg-new 退场完成');
+                    }, 350);
+                }, BG_FADE_DURATION_MS);
+            });
+        });
+
+        // 尝试保存 base64 缓存（用 fetch→blob 方式，不受 CORS 限制）
+        cacheCurrentBgAsync(url);
+    };
+    newImg.onerror = function () {
+        bgLog('applyBgNew() newImg.onerror! url=', displayUrl.substring(0,80));
+        console.warn('[wallpaper] 图片加载失败:', displayUrl);
+        // 优先回退到 base64 缓存（如果有的话），其次 oldLastUrl，最后本地兜底
+        var base64Fallback = getCachedBgData();
+        var fb = base64Fallback || oldLastUrl || FALLBACK_BG_URL;
+        bgLog('applyBgNew() onerror fallback: base64=', !!base64Fallback, '| oldLastUrl=', (oldLastUrl||'').substring(0,40));
+        setWithFallback($bg, fb, ULTIMATE_FALLBACK);
+    };
+    newImg.src = displayUrl;
+    bgLog('applyBgNew() 开始加载 newImg.src=', displayUrl.substring(0,80));
+    return true;
+}
+
+// 通过 fetch→blob→FileReader 异步缓存图片为 base64（用于已显示的图片后台缓存）
+// 与 cacheCurrentBgAsync 不同，此方法不依赖 CORS，能处理大多数 API
+function cacheCurrentBgAsync(url) {
+    bgLog('cacheCurrentBgAsync() 入口 url=', (url||'').substring(0,80));
+    if (!url || url.indexOf('http') !== 0) { bgLog('cacheCurrentBgAsync() 跳过: 非 http(s) URL'); return; }
+    // 避免重复缓存已存在的 base64
+    if (getCachedBgData()) { bgLog('cacheCurrentBgAsync() 跳过: 已有 base64 缓存'); return; }
+    fetch(url, { method: 'GET', redirect: 'follow', cache: 'no-store' })
+        .then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.blob();
+        })
+        .then(function (blob) {
+            bgLog('cacheCurrentBgAsync() blob:', blob.size, 'bytes');
+            var reader = new FileReader();
+            reader.onload = function () {
+                compressAndCacheDataUrl(reader.result, function (compressed) {
+                    bgLog('cacheCurrentBgAsync() 缓存完成, 长度:', (compressed||reader.result).length);
+                });
+            };
+            reader.onerror = function () { bgLog('cacheCurrentBgAsync() FileReader 失败'); };
+            reader.readAsDataURL(blob);
+        })
+        .catch(function (err) {
+            bgLog('cacheCurrentBgAsync() fetch 失败 (可能 CORS 受限):', err.message || err);
+            // CORS 受限的 API 无法通过 JS 获取图像数据，缓存跳过但显示不受影响
+        });
+}
+
+// 默认壁纸图片列表（type=1 的内置源）
+var DEFAULT_BG_LIST = [
+    './img/background1.webp', './img/background2.webp', './img/background3.webp',
+    './img/background4.webp', './img/background5.webp', './img/background6.webp',
+    './img/background7.webp', './img/background8.webp', './img/background9.webp',
+    './img/background10.webp'
+];
+// 默认兜底壁纸（确保首次访问也不会灰屏）
+var FALLBACK_BG_URL = './img/background1.webp';
+// 终极兜底：1x1 灰色 SVG（当所有本地图片都不可用时使用）
+var ULTIMATE_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080">' +
+    '<rect width="1920" height="1080" fill="#2a2a2a"/></svg>'
+);
+
+// 手动刷新背景（右上角刷新按钮调用）
+function refreshBg() {
+    var bg_img = getBgImg();
+    var currentType = bg_img["type"];
+    bgLog('refreshBg() 手动刷新! type=', currentType);
+    switch (currentType) {
+        case "1":
+            var lastBg = getLastBgUrl();
+            var rd = Math.floor(Math.random() * DEFAULT_BG_LIST.length);
+            if (DEFAULT_BG_LIST.length > 1) {
+                var tries = 0;
+                while (DEFAULT_BG_LIST[rd] === lastBg && tries < DEFAULT_BG_LIST.length) {
+                    rd = Math.floor(Math.random() * DEFAULT_BG_LIST.length);
+                    tries++;
+                }
+            }
+            applyBgNew(DEFAULT_BG_LIST[rd], true);
+            break;
+        case "2":
+        case "3":
+        case "4":
+        case "5":
+            var baseUrls = {
+                "2": 'https://bing.biturl.top/?resolution=1920&format=image&index=0&mkt=zh-CN',
+                "3": 'https://picsum.photos/1920/1080',
+                "4": 'https://t.mwm.moe/fj',
+                "5": 'https://t.mwm.moe/mp',
+            };
+            applyBgWithCache(currentType, baseUrls[currentType], bg_img, true);
+            break;
+        case "6":
+            if (bg_img["path"]) {
+                var finalUrl = buildBgUrl(bg_img["path"], getBgApiKey());
+                applyBgWithCache("6", finalUrl, bg_img, true);
+            }
+            break;
+    }
+}
+
+// 比例自适应：完整显示图片 + 模糊边缘填充（ambient mode）
+function applyFitMode(enabled) {
+    var $body = $('body');
+    var $ambient = $('#bg-ambient');
+    var $bg = $('#bg');
+    if (enabled) {
+        $body.addClass('bg-fit');
+        // 用当前 #bg 的图片作为模糊背景
+        var bgSrc = ($bg[0] && $bg[0].src) || '';
+        if (bgSrc && bgSrc.indexOf('data:image/gif;base64,R0lGODlh') === -1) {
+            $ambient.css({ backgroundImage: 'url(' + bgSrc + ')', display: 'block', opacity: 1 });
+        }
+    } else {
+        $body.removeClass('bg-fit');
+        $ambient.css({ opacity: 0 });
+        setTimeout(function () { $ambient.css({ display: 'none', backgroundImage: 'none' }); }, 1000);
+    }
+}
+
+// 当 #bg 图片更新后同步 ambient 背景
+function syncAmbientBg() {
+    if (!$('body').hasClass('bg-fit')) return;
+    var bgSrc = ($('#bg')[0] && $('#bg')[0].src) || '';
+    if (!bgSrc || bgSrc.indexOf('data:image/gif;base64,R0lGODlh') === -1) {
+        $('#bg-ambient').css({ backgroundImage: 'url(' + bgSrc + ')', display: 'block', opacity: 1 });
+    }
+}
+
+// 设置-壁纸（核心初始化函数）
 function setBgImgInit() {
     var bg_img = getBgImg();
+    bgLog('══════════ setBgImgInit() 开始 ══════════');
+    bgLog('  bg_img.type=', bg_img['type'], '| refreshOnLoad=', bg_img['refreshOnLoad'], '| cache=', bg_img['cache'], '| cacheDuration=', bg_img['cacheDuration']);
+
+    // ── 阶段一：立即展示一张确定存在的图片 ────
+    var cachedData = getCachedBgData();
+    var lastUrl = getLastBgUrl();
+    var bgEl = document.getElementById('bg');
+    bgLog('  Phase1: cachedData=', cachedData ? ('存在, 长度='+cachedData.length) : '(无)', '| lastUrl=', (lastUrl||'(无)').substring(0,60), '| bgEl=', !!bgEl);
+
+    // 有 base64 缓存则直接使用无延迟；否则如果有上一次保留的图片源（通常已在浏览器缓存），也作为首选；最后才会退到兜底图
+    var initUrl = cachedData || (lastUrl && typeof lastUrl === 'string' && lastUrl.indexOf('http') === 0 ? lastUrl : null) || FALLBACK_BG_URL;
+    bgLog('  Phase1: initUrl =', initUrl.substring(0, 80), '| 来源:', cachedData ? 'base64缓存' : (initUrl === lastUrl ? '上一次 URL缓存' : '本地兜底图'));
+
+    function doReveal() {
+        bgLog('  Phase1: doReveal() 被调用!');
+        if (typeof _revealFallbackTimer !== 'undefined') {
+            clearTimeout(_revealFallbackTimer);
+            bgLog('  Phase1: 已取消 fallback 定时器');
+        }
+        if (typeof revealPage === 'function') {
+            bgLog('  Phase1: 调用 revealPage()');
+            revealPage();
+        }
+    }
+
+    if (bgEl && initUrl) {
+        var fb1 = (initUrl === FALLBACK_BG_URL) ? null : FALLBACK_BG_URL;
+        bgEl.onerror = function () {
+            bgLog('  Phase1: bgEl.onerror! src=', (bgEl.src||'').substring(0,80));
+            bgEl.onerror = null;
+            setWithFallback($('#bg'), fb1 || ULTIMATE_FALLBACK, ULTIMATE_FALLBACK);
+        };
+        bgEl.src = initUrl;
+        bgLog('  Phase1: 设置 bgEl.src =', initUrl.substring(0,80));
+        var revealed = false;
+        var revealOnce = function () {
+            if (!revealed) { revealed = true; doReveal(); }
+        };
+        var decodeTimeout = setTimeout(function () {
+            bgLog('  Phase1: decode 超时 (300ms) → 强制揭幕');
+            revealOnce();
+        }, 300);
+        var decodePromise = bgEl.decode ? bgEl.decode() : Promise.resolve();
+        decodePromise.then(function () {
+            bgLog('  Phase1: decode 成功 → 揭幕');
+            clearTimeout(decodeTimeout);
+            revealOnce();
+        }).catch(function () {
+            bgLog('  Phase1: decode 失败 → 揭幕');
+            clearTimeout(decodeTimeout);
+            revealOnce();
+        });
+    } else {
+        bgLog('  Phase1: bgEl 或 initUrl 无效 → 直接揭幕');
+        doReveal();
+    }
+
+    if (!lastUrl) {
+        bgLog('  Phase1: 首次访问 (无 lastUrl) → 保存 initUrl 为 lastUrl');
+        setLastBgUrl(initUrl);
+    }
+
+    // ── UI 状态恢复 ─────────────────────────────────
     $("input[name='wallpaper-type'][value=" + bg_img["type"] + "]").click();
     if (bg_img["type"] === "6") {
         $("#wallpaper-url").val(bg_img["path"]);
+        if (getBgApiKey()) {
+            $("#wallpaper-apikey").attr("placeholder", "API 密钥已保存（输入新值以更新）");
+        }
         $("#wallpaper_url").fadeIn(100);
     } else {
         $("#wallpaper_url").fadeOut(300);
     }
-
-    switch (bg_img["type"]) {
-        case "1":
-            var pictures = new Array();
-            pictures[0] = './img/background1.webp';
-            pictures[1] = './img/background2.webp';
-            pictures[2] = './img/background3.webp';
-            pictures[3] = './img/background4.webp';
-            pictures[4] = './img/background5.webp';
-            pictures[5] = './img/background6.webp';
-            pictures[6] = './img/background7.webp';
-            pictures[7] = './img/background8.webp';
-            pictures[8] = './img/background9.webp';
-            pictures[9] = './img/background10.webp';
-            var rd = Math.floor(Math.random() * 10);
-            $('#bg').attr('src', pictures[rd]) //随机默认壁纸
-            break;
-        case "2":
-            $('#bg').attr('src', 'https://bing.biturl.top/?resolution=1920&format=image&index=0&mkt=zh-CN') //必应每日
-            break;
-        case "3":
-            $('#bg').attr('src', 'https://picsum.photos/1920/1080') //随机风景（Lorem Picsum）
-            break;
-        case "4":
-            $('#bg').attr('src', 'https://t.mwm.moe/fj') //随机二次元（樱花 API）
-            break;
-        case "5":
-            $('#bg').attr('src', 'https://t.mwm.moe/mp') //随机猫片
-            break;
-        case "6":
-            if (bg_img["path"]) {
-                $('#bg').attr('src', bg_img["path"]);
-            }
-            break;
+    $("#wallpaper-refresh-enable").prop("checked", bg_img["refreshOnLoad"] === true);
+    var cacheEnabled = bg_img["cache"] === true;
+    $("#wallpaper-cache-enable").prop("checked", cacheEnabled);
+    if (cacheEnabled) {
+        $("#wallpaper-cache-hours").val(bg_img["cacheDuration"] || CACHE_DURATION_DEFAULT);
+        $("#wallpaper_cache_duration").show();
+        $("#wallpaper_cache_save_row").show();
     }
+    // 比例自适应初始化
+    var fitEnabled = bg_img["bg_fit"] === true;
+    $("#wallpaper-fit-enable").prop("checked", fitEnabled);
+    applyFitMode(fitEnabled);
+
+    // ── 判断是否需要获取新壁纸 ──────────────────────
+    var lastType = getLastBgType();
+    var currentType = bg_img["type"];
+    var typeChanged = (lastType && lastType !== currentType);
+    var refreshOnLoad = !!bg_img["refreshOnLoad"];
+    var noLastImg = !lastUrl;
+    var needNewBg = typeChanged || refreshOnLoad || noLastImg;
+    bgLog('  Phase2: lastType=', lastType, '| currentType=', currentType, '| typeChanged=', typeChanged, '| refreshOnLoad=', refreshOnLoad, '| noLastImg=', noLastImg, '| needNewBg=', needNewBg);
+
+    if (!needNewBg) {
+        bgLog('  Phase2: 无需更换壁纸 → 显示上次缓存的真实壁纸');
+        setLastBgType(currentType);
+        // 有 base64 缓存 → 交叉渐变到缓存的真实壁纸
+        if (cachedData) {
+            bgLog('  Phase2: 交叉渐变到 base64 缓存');
+            applyBgNew(cachedData, false);
+        } else if (lastUrl && lastUrl.indexOf('http') === 0) {
+            // 远程 API：fetch 获取图像数据（成功则缓存 base64），同时交叉渐变显示
+            bgLog('  Phase2: fetch API 并交叉渐变显示');
+            applyBgWithCache(currentType, lastUrl, bg_img, false, false);
+        } else if (lastUrl) {
+            // 本地文件：直接交叉渐变
+            bgLog('  Phase2: 交叉渐变到本地文件');
+            applyBgNew(lastUrl, false);
+        }
+        return;
+    }
+
+    setLastBgType(currentType);
+    bgLog('  Phase2: 需要更换壁纸! 原因:', typeChanged?'来源变更':'', refreshOnLoad?'强刷':'', noLastImg?'首次访问':'');
+    var deferredSwitch = function () {
+        bgLog('  Phase2: deferredSwitch 执行! type=', currentType);
+        switch (currentType) {
+            case "1":
+                var cache1 = getBgCache();
+                if (!refreshOnLoad && bg_img["cache"] && isBgCacheValid(cache1, bg_img)) {
+                    applyBgNew(cache1.url, false);
+                } else {
+                    var lastBg = getLastBgUrl();
+                    var rd = Math.floor(Math.random() * DEFAULT_BG_LIST.length);
+                    if (refreshOnLoad && DEFAULT_BG_LIST.length > 1) {
+                        var tries = 0;
+                        while (DEFAULT_BG_LIST[rd] === lastBg && tries < DEFAULT_BG_LIST.length) {
+                            rd = Math.floor(Math.random() * DEFAULT_BG_LIST.length);
+                            tries++;
+                        }
+                    }
+                    var picUrl = DEFAULT_BG_LIST[rd];
+                    if (bg_img["cache"] && !refreshOnLoad) setBgCache("1", picUrl, bg_img);
+                    applyBgNew(picUrl, refreshOnLoad);
+                }
+                break;
+            case "2":
+            case "3":
+            case "4":
+            case "5":
+                var baseUrls = {
+                    "2": 'https://bing.biturl.top/?resolution=1920&format=image&index=0&mkt=zh-CN',
+                    "3": 'https://picsum.photos/1920/1080',
+                    "4": 'https://t.mwm.moe/fj',
+                    "5": 'https://t.mwm.moe/mp',
+                };
+                applyBgWithCache(currentType, baseUrls[currentType], bg_img, refreshOnLoad);
+                break;
+            case "6":
+                if (bg_img["path"]) {
+                    var finalUrl = buildBgUrl(bg_img["path"], getBgApiKey());
+                    applyBgWithCache("6", finalUrl, bg_img, refreshOnLoad);
+                }
+                break;
+        }
+    };
+
+    if (refreshOnLoad || noLastImg) {
+        bgLog('  Phase2: 延迟 300ms 后执行切换');
+        setTimeout(deferredSwitch, 300);
+    } else if (typeChanged) {
+        bgLog('  Phase2: 延迟 100ms 后执行切换 (来源变更)');
+        setTimeout(deferredSwitch, 100);
+    }
+    bgLog('══════════ setBgImgInit() 结束 ══════════');
 }
 
 // 搜索框高亮
@@ -649,6 +1318,17 @@ $(document).ready(function () {
 
         $(".keyword[data-id=" + id + "]").addClass("choose").siblings().removeClass("choose");
         $(".wd").val($(".keyword[data-id=" + id + "]").text());
+    });
+
+    // 刷新背景按钮
+    $("#bg-refresh").click(function () {
+        var $btn = $(this);
+        // 旋转动画反馈
+        $btn.css({ transition: 'transform 0.6s ease', transform: 'rotate(360deg)' });
+        setTimeout(function () {
+            $btn.css({ transition: 'none', transform: 'rotate(0deg)' });
+        }, 650);
+        refreshBg();
     });
 
     // 菜单点击
@@ -1080,12 +1760,19 @@ $(document).ready(function () {
 
         $('#wallpaper_text').html(descriptions[type] || "");
         setBgImg(bg_img);
+        clearBgCache(); // 切换壁纸类型时清除旧缓存
+        clearCachedBgData(); // 清除 base64 图片缓存
+        localStorage.removeItem(BG_LAST_URL_KEY); // 切换类型时清除上次图片缓存
+        localStorage.removeItem(BG_LAST_TYPE_KEY); // 切换类型时清除上次类型记录
 
         if (type === "6") {
             $("#wallpaper_url").fadeIn(200);
             // 恢复已保存的 URL
             if (bg_img["path"]) {
                 $("#wallpaper-url").val(bg_img["path"]);
+            }
+            if (getBgApiKey()) {
+                $("#wallpaper-apikey").attr("placeholder", "API 密钥已保存（输入新值以更新）");
             }
         } else {
             $("#wallpaper_url").fadeOut(200);
@@ -1097,8 +1784,10 @@ $(document).ready(function () {
 
     // 自定义壁纸 URL 保存
     $(".wallpaper_save").click(function () {
-        var url = $("#wallpaper-url").val();
-        if (!url || !isValidUrl(url)) {
+        var url = $("#wallpaper-url").val().trim();
+        // 验证去除 {key} 占位符后的 URL 格式
+        var urlForValidation = url.replace(/\{key\}/g, 'testkey');
+        if (!url || !isValidUrl(urlForValidation)) {
             iziToast.show({
                 timeout: 2000,
                 message: '请输入有效的图片 URL（以 http/https 开头）'
@@ -1109,10 +1798,73 @@ $(document).ready(function () {
         bg_img["type"] = "6";
         bg_img["path"] = url;
         setBgImg(bg_img);
+        // API 密钥存于 localStorage，持久保存
+        var apiKeyInput = $("#wallpaper-apikey").val();
+        if (apiKeyInput) {
+            setBgApiKey(apiKeyInput);
+            $("#wallpaper-apikey").val("").attr("placeholder", "API 密钥已保存（输入新值以更新）");
+        }
+        clearBgCache(); // URL 变更时清除旧缓存
+        clearCachedBgData(); // 清除 base64 图片缓存
+        localStorage.removeItem(BG_LAST_URL_KEY); // 清除上次图片缓存
+        localStorage.removeItem(BG_LAST_TYPE_KEY); // 清除上次类型记录
         iziToast.show({
             message: '自定义壁纸设置成功，刷新生效',
         });
     });
+
+    // 每次刷新更换背景 切换
+    $("#wallpaper-refresh-enable").on("change", function () {
+        var bg_img = getBgImg();
+        bg_img["refreshOnLoad"] = !!$(this).is(":checked");
+        setBgImg(bg_img);
+        iziToast.show({
+            message: bg_img["refreshOnLoad"] ? '已开启每次刷新更换背景，刷新生效' : '已关闭每次刷新更换背景，刷新生效',
+        });
+    });
+
+    // 比例自适应切换
+    $("#wallpaper-fit-enable").on("change", function () {
+        var bg_img = getBgImg();
+        var enabled = !!$(this).is(":checked");
+        bg_img["bg_fit"] = enabled;
+        setBgImg(bg_img);
+        applyFitMode(enabled);
+        iziToast.show({
+            message: enabled ? '已开启比例自适应（完整显示 + 模糊填充）' : '已关闭比例自适应（铺满裁剪）',
+        });
+    });
+
+    // 缓存启用切换
+    $("#wallpaper-cache-enable").on("change", function () {
+        if ($(this).is(":checked")) {
+            $("#wallpaper_cache_duration").show();
+            $("#wallpaper_cache_save_row").show();
+        } else {
+            $("#wallpaper_cache_duration").hide();
+            $("#wallpaper_cache_save_row").hide();
+        }
+    });
+
+    // 缓存设置保存
+    $(".wallpaper_cache_save").click(function () {
+        var bg_img = getBgImg();
+        var enabled = !!$("#wallpaper-cache-enable").is(":checked");
+        bg_img["cache"] = enabled;
+        if (enabled) {
+            var hours = parseInt($("#wallpaper-cache-hours").val(), 10);
+            if (isNaN(hours) || hours < 1) hours = CACHE_DURATION_DEFAULT;
+            if (hours > CACHE_DURATION_MAX) hours = CACHE_DURATION_MAX;
+            bg_img["cacheDuration"] = hours;
+        } else {
+            clearBgCache();
+        }
+        setBgImg(bg_img);
+        iziToast.show({
+            message: enabled ? ('壁纸缓存已启用，有效期 ' + bg_img["cacheDuration"] + ' 小时，刷新生效') : '壁纸缓存已关闭，刷新生效',
+        });
+    });
+
 
     // 我的数据导出
     $("#my_data_out").click(function () {
@@ -1222,4 +1974,12 @@ $(document).ready(function () {
             });
         }
     });
+
+    // 窗口尺寸变化时同步 ambient 背景
+    var _ambientResizeTimer = null;
+    $(window).on('resize', function () {
+        clearTimeout(_ambientResizeTimer);
+        _ambientResizeTimer = setTimeout(syncAmbientBg, 200);
+    });
+
 });

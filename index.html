@@ -8,6 +8,8 @@
     <title>Snavigation</title>
     <meta name="description" content="Snavigation - 简洁的浏览器导航起始页">
     <link rel="icon" href="favicon.ico">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
     <!-- 引入样式 -->
     <link rel="stylesheet" type="text/css" href="./css/style.css">
     <link rel="stylesheet" type="text/css" href="./css/font.css">
@@ -44,6 +46,8 @@
     <!-- 背景图片 -->
     <div class="bg-all">
         <img id="bg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.classList.add('error');" alt="背景图片">
+        <img id="bg-new" src="" style="display:none;" alt="" aria-hidden="true">
+        <div id="bg-ambient" style="display:none;"></div>
         <div class="cover"></div>
     </div>
     <!-- 主体内容 -->
@@ -57,6 +61,7 @@
                         <span id="day">0&nbsp;月&nbsp;00&nbsp;日&nbsp;周一</span>
                     </div>
                     <div class="weather" id="weather-main" role="button" aria-expanded="false" title="点击查看详细天气">
+                        <span class="weather-icon" id="weather_icon" aria-hidden="true">🌤️</span>
                         <span id="wea_text">N/A</span>&nbsp;<span id="tem2">N/A</span>°C&nbsp;~&nbsp;<span
                             id="tem1">N/A</span>°C
                         <span id="wea_city" class="wea-city"></span>
@@ -232,7 +237,10 @@
                         </div>
                     </div>
                 </div>
-                <!-- 设置图标 -->
+                <!-- 刷新背景 + 设置图标 -->
+                <div id="bg-refresh" aria-label="刷新背景" role="button" title="刷新背景图片">
+                    <span class="refresh-icon">↻</span>
+                </div>
                 <div id="menu" aria-label="设置" role="button">
                     <i id="icon-menu" class="iconfont icon-shezhi"></i>
                 </div>
@@ -405,11 +413,12 @@
                                 <div class="set_tip">
                                     <span class="set_text mobile">点击下方选项以切换壁纸，使用除默认壁纸以外的选项可能会导致页面载入缓慢</span>
                                     <span class="set_text mobile">不建议使用以主色调为白色的壁纸，会导致本站部分元素无法辨认</span>
+                                    <span class="set_text mobile">自定义 URL 支持 {key} 占位符，API 密钥将持久保存在本地，下次访问无需重新输入</span>
                                     <span class="set_text" id="wallpaper_text">请点击选项以查看各项说明，高亮项为选中，选中后刷新页面以生效</span>
                                 </div>
-                                <div class="set_blocks_content">
+                                <div class="set_blocks_content wallpaper-tab-content">
                                     <div class="from_container">
-                                        <div class="froms">
+                                        <div class="froms wallpaper-froms">
                                             <div class="from_row">
                                                 <div class="from_row_content">
                                                     <div id="wallpaper">
@@ -458,11 +467,42 @@
                                                     </div>
                                                     <div id="wallpaper_url" style="display: none;">
                                                         <div class="from_items">
-                                                            <div class="from_text">地址</div>
-                                                            <input type="url" id="wallpaper-url" placeholder="输入壁纸图片 URL（https://...）" autocomplete="off">
+                                                            <label class="from_text" for="wallpaper-url">地址</label>
+                                                            <input type="url" id="wallpaper-url" placeholder="输入壁纸图片 URL，可用 {key} 占位 API 密钥" autocomplete="off">
+                                                        </div>
+                                                        <div class="from_items" style="margin-top: 8px;">
+                                                            <label class="from_text" for="wallpaper-apikey">密钥</label>
+                                                            <input type="password" id="wallpaper-apikey" placeholder="API 密钥（可选，将替换 URL 中的 {key}，持久保存）" autocomplete="off">
                                                         </div>
                                                         <div class="from_items button" style="margin-top: 10px;">
                                                             <div class="wallpaper_save">保存</div>
+                                                        </div>
+                                                    </div>
+                                                    <div id="wallpaper_cache" style="margin-top: 12px;">
+                                                        <div class="from_items">
+                                                            <label class="wallpaper-cache-label">
+                                                                <input type="checkbox" id="wallpaper-refresh-enable">
+                                                                每次刷新更换背景
+                                                            </label>
+                                                        </div>
+                                                        <div class="from_items">
+                                                            <label class="wallpaper-cache-label">
+                                                                <input type="checkbox" id="wallpaper-cache-enable">
+                                                                缓存壁纸（避免每次刷新重新获取）
+                                                            </label>
+                                                        </div>
+                                                        <div class="from_items" id="wallpaper_cache_duration" style="display: none; margin-top: 8px;">
+                                                            <label class="from_text" for="wallpaper-cache-hours">时长</label>
+                                                            <input type="number" id="wallpaper-cache-hours" min="1" max="720" placeholder="缓存时长（小时，默认 24）" autocomplete="off">
+                                                        </div>
+                                                        <div class="from_items button" id="wallpaper_cache_save_row" style="display: none; margin-top: 10px;">
+                                                            <div class="wallpaper_cache_save">保存缓存设置</div>
+                                                        </div>
+                                                        <div class="from_items" style="margin-top: 12px;">
+                                                            <label class="wallpaper-cache-label">
+                                                                <input type="checkbox" id="wallpaper-fit-enable">
+                                                                比例自适应（完整显示图片，模糊填充边缘）
+                                                            </label>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -511,6 +551,17 @@
     <noscript>
         <div class="noscript fixed-top">请开启 JavaScript</div>
     </noscript>
+    <div id="shortcuts-modal" class="shortcuts-modal" style="display: none;" aria-hidden="true">
+        <div class="shortcuts-panel">
+            <div class="shortcuts-title">快捷键</div>
+            <div class="shortcut-item"><span class="shortcut-key">?</span><span>打开 / 关闭快捷键面板</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">H</span><span>打开 / 关闭快捷键面板（备用）</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">/</span><span>聚焦搜索框</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">S</span><span>打开设置</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">B</span><span>打开书签</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">Esc</span><span>关闭弹层</span></div>
+        </div>
+    </div>
     <!-- JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/izitoast/1.4.0/js/iziToast.min.js"></script>
