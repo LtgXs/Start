@@ -23,6 +23,26 @@
     --border-bottom-color-active: #efefef;
 }
 
+:root.light-theme {
+    --body-background-color: #eef2f6;
+    --main-text-color: #1f2937;
+    --main-text-form-color: #111827;
+    --main-text-form-hover-color: #f8fafc;
+    --main-background-color: #ffffffa8;
+    --main-background-hover-color: #ffffffcc;
+    --main-background-active-color: #ffffff;
+    --main-button-color: #ffffffb3;
+    --main-button-hover-color: #dbe5f0;
+    --main-button-active-color: #c8d7e6;
+    --main-input-color: #ffffffd1;
+    --main-input-text-placeholder-color: #6b7280;
+    --main-text-shadow: 0px 0px 8px #ffffff80;
+    --main-search-shadow: 0 0 20px #00000026;
+    --main-search-hover-shadow: 0 0 20px #00000040;
+    --border-bottom-color-hover: #11182780;
+    --border-bottom-color-active: #111827;
+}
+
 html,
 body {
     width: 100%;
@@ -182,10 +202,25 @@ img.error {
 }
 
 .time {
+    position: relative;
     color: var(--main-text-color);
     display: flex;
     flex-direction: column;
     align-items: center;
+}
+
+.time::before {
+    content: '';
+    position: absolute;
+    width: 230px;
+    height: 130px;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: conic-gradient(from var(--time-hue, 240deg), #7dd3fc55, #c084fc66, #f9a8d455, #7dd3fc55);
+    filter: blur(38px);
+    z-index: -1;
 }
 
 #point {
@@ -227,6 +262,26 @@ img.error {
     text-shadow: var(--main-text-shadow);
     cursor: pointer;
     transition: 0.3s;
+}
+
+.weather-icon {
+    display: inline-block;
+    margin-right: 6px;
+    font-size: 1rem;
+    transform-origin: center;
+    animation: weather-float 3s ease-in-out infinite;
+}
+
+.weather.sunny .weather-icon {
+    animation: weather-spin 7s linear infinite;
+}
+
+.weather.rainy .weather-icon {
+    animation: weather-bounce 0.9s ease-in-out infinite;
+}
+
+.weather.snowy .weather-icon {
+    animation: weather-sway 2.4s ease-in-out infinite;
 }
 
 .weather:hover {
@@ -609,6 +664,35 @@ img.error {
     border-radius: 8px;
     transition: 0.3s;
     animation: fade 1s;
+}
+
+#theme-toggle {
+    width: 44px;
+    height: 44px;
+    position: absolute;
+    right: 58px;
+    top: 8px;
+    z-index: 2000000;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: 0.3s;
+    animation: fade 1s;
+}
+
+#theme-toggle:hover {
+    background: var(--main-background-color);
+}
+
+#theme-toggle:active {
+    transform: scale(0.90);
+}
+
+#theme-toggle #icon-theme {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    font-size: 1.2rem;
 }
 
 #menu:hover {
@@ -1045,6 +1129,67 @@ input[type="radio"]:checked+label {
     text-align: center;
     font-size: 1.1rem;
     z-index: 9999999;
+}
+
+.shortcuts-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 3000000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.shortcuts-panel {
+    width: min(90vw, 420px);
+    background: var(--main-background-color);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: var(--main-search-hover-shadow);
+}
+
+.shortcuts-title {
+    font-size: 1.05rem;
+    margin-bottom: 12px;
+}
+
+.shortcut-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.shortcut-key {
+    min-width: 30px;
+    text-align: center;
+    padding: 3px 7px;
+    border-radius: 6px;
+    background: var(--main-button-color);
+    font-family: monospace;
+}
+
+@keyframes weather-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-2px); }
+}
+
+@keyframes weather-spin {
+    from { transform: rotate(0); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes weather-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+@keyframes weather-sway {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(12deg); }
 }
 
 /*关闭块*/
