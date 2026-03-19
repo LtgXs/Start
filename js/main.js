@@ -84,6 +84,7 @@ function time() {
     var weekday = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
     var day = dt.getDay();
     var h = dt.getHours();
+    var hour = h;
     var m = dt.getMinutes();
     if (h < 10) {
         h = "0" + h;
@@ -93,7 +94,28 @@ function time() {
     }
     $("#time_text").html(h + '<span id="point">:</span>' + m);
     $("#day").html(mm + "&nbsp;月&nbsp;" + d + "&nbsp;日&nbsp;" + weekday[day]);
+    document.documentElement.style.setProperty('--time-hue', (hour * 15) + 'deg');
     t = setTimeout(time, 1000);
+}
+
+function applyWeatherVisual(desc) {
+    var $weather = $('#weather-main');
+    $weather.removeClass('sunny rainy snowy cloudy');
+    var icon = '🌤️';
+    if (desc.indexOf('雨') !== -1) {
+        icon = '🌧️';
+        $weather.addClass('rainy');
+    } else if (desc.indexOf('雪') !== -1) {
+        icon = '❄️';
+        $weather.addClass('snowy');
+    } else if (desc.indexOf('晴') !== -1) {
+        icon = '☀️';
+        $weather.addClass('sunny');
+    } else if (desc.indexOf('阴') !== -1 || desc.indexOf('云') !== -1) {
+        icon = '☁️';
+        $weather.addClass('cloudy');
+    }
+    $('#weather_icon').text(icon);
 }
 
 //获取天气 - 使用 MSN/Bing 公开天气 API（无需注册 API Key）
@@ -159,6 +181,7 @@ function time() {
             // 更新天气显示
             if (current && current.cap) {
                 $('#wea_text').text(current.cap);
+                applyWeatherVisual(current.cap);
             }
             if (today) {
                 $('#tem1').text(today.tempHi);
@@ -222,6 +245,7 @@ function fetchWeatherFallback() {
                 // 优先使用中文描述
                 var desc = cc.lang_zh && cc.lang_zh[0] ? cc.lang_zh[0].value : cc.weatherDesc[0].value;
                 $('#wea_text').text(desc);
+                applyWeatherVisual(desc);
                 $('#tem1').text(cc.temp_C);
                 $('#tem2').text(cc.temp_C);
                 // 详细天气
@@ -276,11 +300,30 @@ $(function () {
 
 //输入框为空时阻止跳转
 $(window).keydown(function (e) {
-    if (e.key === "Enter") {
+    if (e.key === "Escape") {
+        if ($("#shortcuts-modal").is(':visible')) {
+            $("#shortcuts-modal").fadeOut(120).attr('aria-hidden', 'true');
+            return;
+        }
+    } else if (e.key === "Enter") {
         if ($("body").hasClass("onsearch") && $(".wd").val() === "") {
             e.preventDefault();
             return false;
         }
+    }
+    if (e.key === "?") {
+        e.preventDefault();
+        var show = $("#shortcuts-modal").is(':hidden');
+        $("#shortcuts-modal").fadeToggle(120).attr('aria-hidden', show ? 'false' : 'true');
+    } else if (e.key === "/") {
+        e.preventDefault();
+        $(".wd").focus();
+        if (typeof focusWd === 'function') focusWd();
+    } else if (e.key === "s" || e.key === "S") {
+        if (!$("#menu").hasClass('on')) $("#menu").trigger('click');
+    } else if (e.key === "b" || e.key === "B") {
+        if ($("#menu").hasClass('on')) $("#menu").trigger('click');
+        if (!$("#content").hasClass('box')) $("#time_text").trigger('click');
     }
 });
 

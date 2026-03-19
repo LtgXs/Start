@@ -74,6 +74,12 @@ var Storage = {
     }
 };
 
+function applyTheme(theme) {
+    var isLight = theme === 'light';
+    document.documentElement.classList.toggle('light-theme', isLight);
+    $("#icon-theme").text(isLight ? "☀️" : "🌙");
+}
+
 // 默认搜索引擎列表
 var se_list_preinstall = {
     '1': {
@@ -523,6 +529,9 @@ function hideQuick() {
 
 
 $(document).ready(function () {
+    // 主题加载
+    applyTheme(Storage.get('theme') || 'dark');
+
 
     // 搜索框数据加载
     searchData();
@@ -662,6 +671,18 @@ $(document).ready(function () {
             setSeInit(); //搜索引擎设置
             setQuickInit(); //快捷方式设置
         }
+    });
+
+    // 主题切换
+    $("#theme-toggle").click(function () {
+        var current = Storage.get('theme') || 'dark';
+        var next = current === 'light' ? 'dark' : 'light';
+        Storage.set('theme', next);
+        applyTheme(next);
+        iziToast.show({
+            timeout: 1500,
+            message: next === 'light' ? '已切换为浅色主题' : '已切换为深色主题'
+        });
     });
 
     // 快捷方式添加按钮点击

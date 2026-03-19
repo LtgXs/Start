@@ -8,6 +8,8 @@
     <title>Snavigation</title>
     <meta name="description" content="Snavigation - 简洁的浏览器导航起始页">
     <link rel="icon" href="favicon.ico">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
     <!-- 引入样式 -->
     <link rel="stylesheet" type="text/css" href="./css/style.css">
     <link rel="stylesheet" type="text/css" href="./css/font.css">
@@ -57,6 +59,7 @@
                         <span id="day">0&nbsp;月&nbsp;00&nbsp;日&nbsp;周一</span>
                     </div>
                     <div class="weather" id="weather-main" role="button" aria-expanded="false" title="点击查看详细天气">
+                        <span class="weather-icon" id="weather_icon" aria-hidden="true">🌤️</span>
                         <span id="wea_text">N/A</span>&nbsp;<span id="tem2">N/A</span>°C&nbsp;~&nbsp;<span
                             id="tem1">N/A</span>°C
                         <span id="wea_city" class="wea-city"></span>
@@ -235,6 +238,9 @@
                 <!-- 设置图标 -->
                 <div id="menu" aria-label="设置" role="button">
                     <i id="icon-menu" class="iconfont icon-shezhi"></i>
+                </div>
+                <div id="theme-toggle" aria-label="主题切换" role="button" title="切换深色/浅色主题">
+                    <span id="icon-theme" aria-hidden="true">🌙</span>
                 </div>
                 <!-- 设置页 -->
                 <div class="set" style="display: none;">
@@ -511,12 +517,22 @@
     <noscript>
         <div class="noscript fixed-top">请开启 JavaScript</div>
     </noscript>
+    <div id="shortcuts-modal" class="shortcuts-modal" style="display: none;" aria-hidden="true">
+        <div class="shortcuts-panel">
+            <div class="shortcuts-title">快捷键</div>
+            <div class="shortcut-item"><span class="shortcut-key">?</span><span>打开 / 关闭快捷键面板</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">/</span><span>聚焦搜索框</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">S</span><span>打开设置</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">B</span><span>打开书签</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">Esc</span><span>关闭弹层</span></div>
+        </div>
+    </div>
     <!-- JS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/izitoast/1.4.0/js/iziToast.min.js"></script>
-    <script type="text/javascript" src="./js/js.cookie.js"></script>
-    <script type="text/javascript" src="./js/set.js"></script>
-    <script type="text/javascript" src="./js/main.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/izitoast/1.4.0/js/iziToast.min.js"></script>
+    <script defer type="text/javascript" src="./js/js.cookie.js"></script>
+    <script defer type="text/javascript" src="./js/set.js"></script>
+    <script defer type="text/javascript" src="./js/main.js"></script>
 </body>
 
 </html>
