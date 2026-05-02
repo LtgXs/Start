@@ -411,6 +411,7 @@
                                 <div class="set_tip">
                                     <span class="set_text mobile">点击下方选项以切换壁纸，使用除默认壁纸以外的选项可能会导致页面载入缓慢</span>
                                     <span class="set_text mobile">不建议使用以主色调为白色的壁纸，会导致本站部分元素无法辨认</span>
+                                    <span class="set_text mobile">自定义 URL 支持 {key} 占位符，API 密钥仅在当前会话中保存，关闭标签页后需重新输入</span>
                                     <span class="set_text" id="wallpaper_text">请点击选项以查看各项说明，高亮项为选中，选中后刷新页面以生效</span>
                                 </div>
                                 <div class="set_blocks_content">
@@ -464,11 +465,30 @@
                                                     </div>
                                                     <div id="wallpaper_url" style="display: none;">
                                                         <div class="from_items">
-                                                            <div class="from_text">地址</div>
-                                                            <input type="url" id="wallpaper-url" placeholder="输入壁纸图片 URL（https://...）" autocomplete="off">
+                                                            <label class="from_text" for="wallpaper-url">地址</label>
+                                                            <input type="url" id="wallpaper-url" placeholder="输入壁纸图片 URL，可用 {key} 占位 API 密钥" autocomplete="off">
+                                                        </div>
+                                                        <div class="from_items" style="margin-top: 8px;">
+                                                            <label class="from_text" for="wallpaper-apikey">密钥</label>
+                                                            <input type="password" id="wallpaper-apikey" placeholder="API 密钥（可选，将替换 URL 中的 {key}）" autocomplete="off">
                                                         </div>
                                                         <div class="from_items button" style="margin-top: 10px;">
                                                             <div class="wallpaper_save">保存</div>
+                                                        </div>
+                                                    </div>
+                                                    <div id="wallpaper_cache" style="margin-top: 12px;">
+                                                        <div class="from_items">
+                                                            <label class="wallpaper-cache-label">
+                                                                <input type="checkbox" id="wallpaper-cache-enable">
+                                                                缓存壁纸（避免每次刷新重新获取）
+                                                            </label>
+                                                        </div>
+                                                        <div class="from_items" id="wallpaper_cache_duration" style="display: none; margin-top: 8px;">
+                                                            <label class="from_text" for="wallpaper-cache-hours">时长</label>
+                                                            <input type="number" id="wallpaper-cache-hours" min="1" max="720" placeholder="缓存时长（小时，默认 24）" autocomplete="off">
+                                                        </div>
+                                                        <div class="from_items button" id="wallpaper_cache_save_row" style="display: none; margin-top: 10px;">
+                                                            <div class="wallpaper_cache_save">保存缓存设置</div>
                                                         </div>
                                                     </div>
                                                 </div>
