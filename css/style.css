@@ -845,7 +845,8 @@ img.error {
 }
 
 .add_content input,
-#wallpaper_url input {
+#wallpaper_url input,
+#wallpaper_cache input[type="number"] {
     font-size: 1.05rem;
     outline: none;
     height: 40px;
@@ -859,12 +860,15 @@ img.error {
 .add_content input:hover,
 .add_content input:active,
 #wallpaper_url input:hover,
-#wallpaper_url input:active {
+#wallpaper_url input:active,
+#wallpaper_cache input[type="number"]:hover,
+#wallpaper_cache input[type="number"]:active {
     box-shadow: var(--main-search-hover-shadow);
 }
 
 .add_content input::-webkit-input-placeholder,
-#wallpaper_url input::-webkit-input-placeholder {
+#wallpaper_url input::-webkit-input-placeholder,
+#wallpaper_cache input[type="number"]::-webkit-input-placeholder {
     color: var(--main-input-text-placeholder-color);
 }
 
@@ -950,6 +954,49 @@ input[type="number"] {
 #wallpaper_url {
     margin: 10px 0px;
     animation: fade 0.5s;
+}
+
+#wallpaper_cache {
+    animation: fade 0.5s;
+}
+
+.wallpaper-cache-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 6px 0;
+}
+
+.wallpaper-cache-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--main-background-active-color);
+}
+
+.wallpaper_cache_save {
+    width: 25%;
+    display: flex;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--main-background-color);
+    margin: 0 20px;
+    justify-content: center;
+    align-items: center;
+    transition: 0.3s;
+}
+
+.wallpaper_cache_save:hover {
+    cursor: pointer;
+    background: var(--main-background-hover-color);
+    transition: 0.3s;
+}
+
+.wallpaper_cache_save:active {
+    transform: scale(0.90);
+    background: var(--main-background-active-color);
+    transition: 0.3s;
 }
 
 #wallpaper_text {
