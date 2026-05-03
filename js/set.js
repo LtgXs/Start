@@ -167,11 +167,15 @@ var bg_img_preinstall = {
     "cacheDuration": 24,  // 缓存时长（小时）
 };
 
-// API 密钥存储键（存储于 sessionStorage，页面关闭后自动清除）
+// API 密钥存储键（存储于 localStorage，持久保存）
 var BG_APIKEY_SESSION_KEY = 'bg_apikey';
+// 上次显示的背景图片 URL（用于下次访问时立即展示）
+var BG_LAST_URL_KEY = 'bg_last_url';
 // 缓存时长限制（小时）
 var CACHE_DURATION_DEFAULT = 24;
 var CACHE_DURATION_MAX = 720;
+// 背景渐变过渡时长（毫秒，与 CSS 中 #bg-new 的 transition 时长保持一致）
+var BG_FADE_DURATION_MS = 1500;
 
 // 获取背景图片
 function getBgImg() {
@@ -197,17 +201,26 @@ function setBgImg(bg_img) {
     return false;
 }
 
-// 获取/保存/清除 API 密钥（仅存于 sessionStorage，不持久化）
+// 获取/保存/清除 API 密钥（存于 localStorage，持久保存）
+// 注意：localStorage 为明文存储，适用于个人使用场景；如需更高安全性请勿在公共设备上使用
 function getBgApiKey() {
-    return sessionStorage.getItem(BG_APIKEY_SESSION_KEY) || '';
+    return localStorage.getItem(BG_APIKEY_SESSION_KEY) || '';
 }
 function setBgApiKey(key) {
     if (key) {
-        sessionStorage.setItem(BG_APIKEY_SESSION_KEY, key);
+        localStorage.setItem(BG_APIKEY_SESSION_KEY, key);
     }
 }
 function clearBgApiKey() {
-    sessionStorage.removeItem(BG_APIKEY_SESSION_KEY);
+    localStorage.removeItem(BG_APIKEY_SESSION_KEY);
+}
+
+// 获取/保存上次显示的背景图片 URL
+function getLastBgUrl() {
+    return localStorage.getItem(BG_LAST_URL_KEY) || '';
+}
+function setLastBgUrl(url) {
+    if (url) localStorage.setItem(BG_LAST_URL_KEY, url);
 }
 
 // 根据 bg_img 配置构建最终壁纸 URL（替换 {key} 占位符）
@@ -251,30 +264,73 @@ function isBgCacheValid(cache, bg_img) {
 // 尝试通过 fetch 解析图片的最终重定向 URL，成功则缓存，失败则直接使用原 URL
 function applyBgWithCache(type, url, bg_img) {
     var cache = getBgCache();
-    if (bg_img["cache"] && isBgCacheValid(cache, bg_img)) {
-        $('#bg').attr('src', cache.url);
+    var useRefresh = bg_img["refreshOnLoad"];
+    if (!useRefresh && bg_img["cache"] && isBgCacheValid(cache, bg_img)) {
+        applyBgNew(cache.url);
         return;
     }
-    // 先直接显示（保证加载），同时尝试解析最终 URL 以便缓存
-    $('#bg').attr('src', url);
-    if (bg_img["cache"]) {
+    if (bg_img["cache"] || useRefresh) {
+        // 通过 fetch 解析最终 URL 以便缓存或刷新
         fetch(url, { method: 'GET', redirect: 'follow', mode: 'cors', cache: 'no-store' })
             .then(function (res) {
                 var finalUrl = res.url || url;
-                setBgCache(type, finalUrl, bg_img);
-                $('#bg').attr('src', finalUrl);
+                if (bg_img["cache"] && !useRefresh) setBgCache(type, finalUrl, bg_img);
+                applyBgNew(finalUrl);
             })
             .catch(function (err) {
-                // CORS 或网络失败：退而缓存原始 URL
-                console.warn('[wallpaper cache] fetch 失败，已缓存原始 URL:', err);
-                setBgCache(type, url, bg_img);
+                // CORS 或网络失败：使用原始 URL
+                console.warn('[wallpaper cache] fetch 失败，使用原始 URL:', err);
+                if (bg_img["cache"] && !useRefresh) setBgCache(type, url, bg_img);
+                applyBgNew(url);
             });
+    } else {
+        applyBgNew(url);
     }
+}
+
+// 切换到新背景图片，若已有上次图片则渐变过渡
+function applyBgNew(url) {
+    if (!url) return;
+    var lastUrl = getLastBgUrl();
+    setLastBgUrl(url);
+
+    if (!lastUrl || lastUrl === url) {
+        $('#bg').attr('src', url);
+        return;
+    }
+
+    // 已有不同的上次图片：将新图加载到 #bg-new 后渐变显示
+    var $bgNew = $('#bg-new');
+    var newImg = new Image();
+    newImg.onload = function () {
+        $bgNew.attr('src', url).css({ display: 'block', opacity: 0 });
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                $bgNew.css({ transition: 'opacity ' + (BG_FADE_DURATION_MS / 1000) + 's ease', opacity: 1 });
+                setTimeout(function () {
+                    $('#bg').attr('src', url);
+                    $bgNew.css('opacity', 0);
+                    setTimeout(function () { $bgNew.css('display', 'none'); }, BG_FADE_DURATION_MS + 100);
+                }, BG_FADE_DURATION_MS);
+            });
+        });
+    };
+    newImg.onerror = function () {
+        $('#bg').attr('src', url);
+    };
+    newImg.src = url;
 }
 
 // 设置-壁纸
 function setBgImgInit() {
     var bg_img = getBgImg();
+
+    // 立即展示上次缓存的背景图片，提升访问体验
+    var lastUrl = getLastBgUrl();
+    if (lastUrl) {
+        $('#bg').attr('src', lastUrl);
+    }
+
     $("input[name='wallpaper-type'][value=" + bg_img["type"] + "]").click();
     if (bg_img["type"] === "6") {
         $("#wallpaper-url").val(bg_img["path"]);
@@ -286,6 +342,9 @@ function setBgImgInit() {
     } else {
         $("#wallpaper_url").fadeOut(300);
     }
+
+    // 恢复"每次刷新更换背景"设置
+    $("#wallpaper-refresh-enable").prop("checked", bg_img["refreshOnLoad"] === true);
 
     // 恢复缓存设置
     var cacheEnabled = bg_img["cache"] === true;
@@ -312,12 +371,13 @@ function setBgImgInit() {
                 './img/background10.webp'
             ];
             var cache1 = getBgCache();
-            if (bg_img["cache"] && isBgCacheValid(cache1, bg_img)) {
-                $('#bg').attr('src', cache1.url);
+            if (!bg_img["refreshOnLoad"] && bg_img["cache"] && isBgCacheValid(cache1, bg_img)) {
+                applyBgNew(cache1.url);
             } else {
                 var rd = Math.floor(Math.random() * pictures.length);
-                $('#bg').attr('src', pictures[rd]);
-                if (bg_img["cache"]) setBgCache("1", pictures[rd], bg_img);
+                var picUrl = pictures[rd];
+                if (bg_img["cache"] && !bg_img["refreshOnLoad"]) setBgCache("1", picUrl, bg_img);
+                applyBgNew(picUrl);
             }
             break;
         case "2":
@@ -1201,6 +1261,7 @@ $(document).ready(function () {
         $('#wallpaper_text').html(descriptions[type] || "");
         setBgImg(bg_img);
         clearBgCache(); // 切换壁纸类型时清除旧缓存
+        localStorage.removeItem(BG_LAST_URL_KEY); // 切换类型时清除上次图片缓存
 
         if (type === "6") {
             $("#wallpaper_url").fadeIn(200);
@@ -1235,15 +1296,26 @@ $(document).ready(function () {
         bg_img["type"] = "6";
         bg_img["path"] = url;
         setBgImg(bg_img);
-        // API 密钥存于 sessionStorage，不写入 localStorage
+        // API 密钥存于 localStorage，持久保存
         var apiKeyInput = $("#wallpaper-apikey").val();
         if (apiKeyInput) {
             setBgApiKey(apiKeyInput);
             $("#wallpaper-apikey").val("").attr("placeholder", "API 密钥已保存（输入新值以更新）");
         }
         clearBgCache(); // URL 变更时清除旧缓存
+        localStorage.removeItem(BG_LAST_URL_KEY); // 清除上次图片缓存
         iziToast.show({
             message: '自定义壁纸设置成功，刷新生效',
+        });
+    });
+
+    // 每次刷新更换背景 切换
+    $("#wallpaper-refresh-enable").on("change", function () {
+        var bg_img = getBgImg();
+        bg_img["refreshOnLoad"] = !!$(this).is(":checked");
+        setBgImg(bg_img);
+        iziToast.show({
+            message: bg_img["refreshOnLoad"] ? '已开启每次刷新更换背景，刷新生效' : '已关闭每次刷新更换背景，刷新生效',
         });
     });
 
