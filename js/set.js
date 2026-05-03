@@ -174,6 +174,8 @@ var BG_LAST_URL_KEY = 'bg_last_url';
 // 缓存时长限制（小时）
 var CACHE_DURATION_DEFAULT = 24;
 var CACHE_DURATION_MAX = 720;
+// 背景渐变过渡时长（毫秒，与 CSS 中 #bg-new 的 transition 时长保持一致）
+var BG_FADE_DURATION_MS = 1500;
 
 // 获取背景图片
 function getBgImg() {
@@ -200,6 +202,7 @@ function setBgImg(bg_img) {
 }
 
 // 获取/保存/清除 API 密钥（存于 localStorage，持久保存）
+// 注意：localStorage 为明文存储，适用于个人使用场景；如需更高安全性请勿在公共设备上使用
 function getBgApiKey() {
     return localStorage.getItem(BG_APIKEY_SESSION_KEY) || '';
 }
@@ -301,13 +304,16 @@ function applyBgNew(url) {
     var newImg = new Image();
     newImg.onload = function () {
         $bgNew.attr('src', url).css({ display: 'block', opacity: 0 });
-        $bgNew[0].offsetHeight; // 强制重排
-        $bgNew.css({ transition: 'opacity 1.5s ease', opacity: 1 });
-        setTimeout(function () {
-            $('#bg').attr('src', url);
-            $bgNew.css('opacity', 0);
-            setTimeout(function () { $bgNew.css('display', 'none'); }, 1600);
-        }, 1600);
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                $bgNew.css({ transition: 'opacity ' + (BG_FADE_DURATION_MS / 1000) + 's ease', opacity: 1 });
+                setTimeout(function () {
+                    $('#bg').attr('src', url);
+                    $bgNew.css('opacity', 0);
+                    setTimeout(function () { $bgNew.css('display', 'none'); }, BG_FADE_DURATION_MS + 100);
+                }, BG_FADE_DURATION_MS);
+            });
+        });
     };
     newImg.onerror = function () {
         $('#bg').attr('src', url);
