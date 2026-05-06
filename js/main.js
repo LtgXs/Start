@@ -283,10 +283,26 @@ $(function () {
     // ── 天气点击展开/收起详情 ──────────────────────────────────
     $("#weather-main").click(function () {
         var $main = $(this);
-        $("#weather-detail").slideToggle(350, function () {
-            var expanded = $(this).is(':visible');
-            $main.attr('aria-expanded', expanded);
-        });
+        var $detail = $("#weather-detail");
+        var isExpanding = !$detail.hasClass("show");
+
+        if (isExpanding) {
+            $detail.css("display", "flex");
+            // Force layout reflow
+            $detail[0].offsetWidth;
+            $detail.addClass("show");
+            $main.attr('aria-expanded', true);
+            $(".tool-all").addClass("weather-open");
+        } else {
+            $detail.removeClass("show");
+            $main.attr('aria-expanded', false);
+            $(".tool-all").removeClass("weather-open");
+            setTimeout(function() {
+                if (!$detail.hasClass("show")) {
+                    $detail.css("display", "none");
+                }
+            }, 350);
+        }
     });
 
     // ── 键盘快捷键 ─────────────────────────────────────────────

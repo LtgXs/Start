@@ -9,7 +9,7 @@
 var bg_img_preinstall = {
     "type": "1",          // 1~5:内置源 6:自定义URL
     "path": "",           // 自定义图片 URL 模板（可含 {key} 占位符）
-    "cache": false,       // 是否缓存壁纸
+    "cache": true,        // 是否缓存壁纸 (已强制开启)
     "cacheDuration": 24,  // 缓存时长（小时）
     "bg_fit": false,      // 比例自适应：完整显示图片，模糊填充边缘
 };
@@ -59,7 +59,9 @@ function getBgImg() {
     var bg_img_local = Storage.get('bg_img');
     if (bg_img_local && bg_img_local !== "{}") {
         try {
-            return JSON.parse(bg_img_local);
+            var parsed = JSON.parse(bg_img_local);
+            parsed.cache = true; // 强制使用缓存
+            return parsed;
         } catch (e) {
             console.warn('bg_img 数据损坏，已重置:', e);
             Storage.remove('bg_img');
@@ -319,25 +321,30 @@ function resolveRealBgUrl(type, fallbackUrl) {
     });
 }
 
-function applyBgWithCache(type, url, bg_img, forceRefresh, silentMode) {
+function applyBgWithCache(type, url, bg_img, forceRefresh, silentMode, callback) {
     bgLog('applyBgWithCache() 入口 type=', type, '| forceRefresh=', forceRefresh, '| silent=', !!silentMode, '| cache.enabled=', bg_img['cache']);
     var cache = getBgCache();
+    
+    function doneCb(res) {
+        if (typeof callback === 'function') callback(res);
+    }
+
     if (!forceRefresh && bg_img["cache"] && isBgCacheValid(cache, bg_img)) {
         bgLog('applyBgWithCache() 缓存有效 → 使用缓存');
         var cachedData = getCachedBgData();
         if (cachedData) {
             bgLog('applyBgWithCache() 有 base64 缓存，直接渲染');
-            if (silentMode) { bgLog('applyBgWithCache() silentMode → 跳过渲染'); return false; }
-            return applyBgNew(cachedData, false);
+            if (silentMode) { bgLog('applyBgWithCache() silentMode → 跳过渲染'); doneCb(false); return false; }
+            return applyBgNew(cachedData, false, doneCb);
         }
         bgLog('applyBgWithCache() 无 base64 缓存，使用缓存 URL');
-        if (silentMode) { bgLog('applyBgWithCache() silentMode → 跳过渲染'); return false; }
-        return applyBgNew(cache.url, false);
+        if (silentMode) { bgLog('applyBgWithCache() silentMode → 跳过渲染'); doneCb(false); return false; }
+        return applyBgNew(cache.url, false, doneCb);
     }
 
     if (!bg_img["cache"] && !forceRefresh && !silentMode) {
         bgLog('applyBgWithCache() cache关闭且非强刷非静默 → 直接 URL 渲染');
-        return applyBgNew(url, false);
+        return applyBgNew(url, false, doneCb);
     }
 
     bgLog('applyBgWithCache() 需要获取新数据，提前解析真实 URL...');
@@ -373,21 +380,22 @@ function applyBgWithCache(type, url, bg_img, forceRefresh, silentMode) {
             .then(function (result) {
                 bgLog('applyBgWithCache() 成功获取数据, dataUrl 长度:', result.dataUrl.length);
                 if (bg_img["cache"]) setBgCache(type, result.finalUrl, bg_img);
-                if (silentMode) { bgLog('applyBgWithCache() silentMode → 仅缓存，不渲染'); return; }
-                applyBgNew(result.dataUrl, forceRefresh);
+                if (silentMode) { bgLog('applyBgWithCache() silentMode → 仅缓存，不渲染'); doneCb(false); return; }
+                applyBgNew(result.dataUrl, forceRefresh, doneCb);
             })
             .catch(function (err) {
                 bgLog('applyBgWithCache() fetch→blob 失败!', err.message || err, '| 存在 base64?', !!getCachedBgData());
                 console.warn('[wallpaper cache] fetch/blob 失败，回退到真实静态 URL 模式:', err);
                 if (bg_img["cache"]) setBgCache(type, realUrl, bg_img);
-                if (silentMode) { bgLog('applyBgWithCache() silentMode → 回退也跳过渲染'); return; }
+                if (forceRefresh) clearCachedBgData(); // 强制刷新且请求失败时，清空过期缓存以免持续兜底
+                if (silentMode) { bgLog('applyBgWithCache() silentMode → 回退也跳过渲染'); doneCb(false); return; }
                 var base64Fallback = getCachedBgData();
                 if (base64Fallback && !forceRefresh) {
                     bgLog('applyBgWithCache() 回退到 base64 缓存');
-                    applyBgNew(base64Fallback, false);
+                    applyBgNew(base64Fallback, false, doneCb);
                 } else {
                     bgLog('applyBgWithCache() 回退到直接 URL 加载');
-                    applyBgNew(realUrl, forceRefresh);
+                    applyBgNew(realUrl, forceRefresh, doneCb);
                 }
             });
     });
@@ -398,14 +406,19 @@ function applyBgWithCache(type, url, bg_img, forceRefresh, silentMode) {
 // 交叉渐变切换背景
 // ══════════════════════════════════════════════════════════════════
 
-function applyBgNew(url, forceRefresh) {
+function applyBgNew(url, forceRefresh, callback) {
     bgLog('applyBgNew() 入口 url=', (url || '').substring(0, 80), '| forceRefresh=', forceRefresh);
-    if (!url) { bgLog('applyBgNew() 跳过: url 为空'); return false; }
+    
+    function doneCb(res) {
+        if (typeof callback === 'function') callback(res);
+    }
+
+    if (!url) { bgLog('applyBgNew() 跳过: url 为空'); doneCb(false); return false; }
     var lastUrl = getLastBgUrl();
     var $bg = $('#bg');
 
     var displayUrl = url;
-    if (forceRefresh) {
+    if (forceRefresh && url.indexOf('data:image/') !== 0) {
         displayUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_t=' + Date.now();
         bgLog('applyBgNew() forceRefresh: 附加时间戳 →', displayUrl.substring(0, 80));
     }
@@ -414,6 +427,7 @@ function applyBgNew(url, forceRefresh) {
     var currentDomSrc = ($bg[0] && $bg[0].src) || '';
     if (!forceRefresh && currentDomSrc === displayUrl) {
         bgLog('applyBgNew() 当前 DOM 已显示此图 → 跳过');
+        doneCb(false);
         return false;
     }
 
@@ -426,9 +440,16 @@ function applyBgNew(url, forceRefresh) {
     newImg.onload = function () {
         bgLog('applyBgNew() newImg.onload 触发! naturalSize:', newImg.naturalWidth + 'x' + newImg.naturalHeight);
         var bgEl = $bg[0];
+        var isFitMode = $('body').hasClass('bg-fit');
+        var $bgAmbientNew = $('#bg-ambient-new');
 
-        if ($('body').hasClass('bg-fit')) {
-            $('#bg-ambient').css({ backgroundImage: 'url(' + displayUrl + ')', display: 'block', opacity: 1 });
+        if (isFitMode) {
+            $bgAmbientNew.css({
+                backgroundImage: 'url(' + displayUrl + ')',
+                display: 'block',
+                opacity: 0,
+                transition: 'none'
+            });
         }
 
         var cs = bgEl ? window.getComputedStyle(bgEl) : null;
@@ -445,25 +466,38 @@ function applyBgNew(url, forceRefresh) {
         });
         bgLog('applyBgNew() #bg-new 就绪, filter:', inheritFilter, '| transform:', inheritTransform);
 
+        // 强行触发布局重绘
+        $bgNew[0].offsetHeight;
+        if (isFitMode) $bgAmbientNew[0].offsetHeight;
+
         requestAnimationFrame(function () {
-            requestAnimationFrame(function () {
-                $bgNew.css({
+            $bgNew.css({
+                transition: 'opacity ' + (BG_FADE_DURATION_MS / 1000) + 's ease',
+                opacity: 1
+            });
+            if (isFitMode) {
+                $bgAmbientNew.css({
                     transition: 'opacity ' + (BG_FADE_DURATION_MS / 1000) + 's ease',
                     opacity: 1
                 });
-                bgLog('applyBgNew() 交叉渐变开始 (opacity 0→1)');
+            }
+            bgLog('applyBgNew() 交叉渐变开始 (opacity 0→1)');
+            setTimeout(function () {
+                var finalSrc = $bgNew.attr('src') || displayUrl;
+                $bg.attr('src', finalSrc);
+                bgLog('applyBgNew() 交叉渐变完成, #bg.src =', finalSrc.substring(0, 80));
+                syncAmbientBg();
+                
+                // 延迟隐藏 bg-new，确保 bg 的 src 已经被浏览器渲染出来，避免闪烁
                 setTimeout(function () {
-                    var finalSrc = $bgNew.attr('src') || displayUrl;
-                    $bg.attr('src', finalSrc);
-                    bgLog('applyBgNew() 交叉渐变完成, #bg.src =', finalSrc.substring(0, 80));
-                    syncAmbientBg();
-                    $bgNew.css({ transition: 'opacity 0.3s ease', opacity: 0 });
-                    setTimeout(function () {
-                        $bgNew.css({ display: 'none', filter: '', transform: '' });
-                        bgLog('applyBgNew() #bg-new 退场完成');
-                    }, 350);
-                }, BG_FADE_DURATION_MS);
-            });
+                    $bgNew.css({ transition: 'none', opacity: 0, display: 'none', filter: '', transform: '' });
+                    if (isFitMode) {
+                        $bgAmbientNew.css({ transition: 'none', opacity: 0, display: 'none' });
+                    }
+                    bgLog('applyBgNew() #bg-new 退场完成');
+                    doneCb(true);
+                }, 100);
+            }, BG_FADE_DURATION_MS);
         });
 
         // 后台异步缓存
@@ -473,9 +507,13 @@ function applyBgNew(url, forceRefresh) {
         bgLog('applyBgNew() newImg.onerror! url=', displayUrl.substring(0, 80));
         console.warn('[wallpaper] 图片加载失败:', displayUrl);
         var base64Fallback = getCachedBgData();
+        // Fallback chain: Base64 -> lastUrl -> FALLBACK_BG_URL -> Gray
         var fb = base64Fallback || oldLastUrl || FALLBACK_BG_URL;
         bgLog('applyBgNew() onerror fallback: base64=', !!base64Fallback, '| oldLastUrl=', (oldLastUrl || '').substring(0, 40));
-        setWithFallback($bg, fb, ULTIMATE_FALLBACK);
+        
+        var nextFb = (fb !== FALLBACK_BG_URL) ? FALLBACK_BG_URL : ULTIMATE_FALLBACK;
+        setWithFallback($bg, fb, nextFb);
+        doneCb(false);
     };
     newImg.src = displayUrl;
     bgLog('applyBgNew() 开始加载 newImg.src=', displayUrl.substring(0, 80));
@@ -512,7 +550,26 @@ function cacheCurrentBgAsync(url) {
 // 刷新背景（右上角按钮调用）
 // ══════════════════════════════════════════════════════════════════
 
+var isRefreshingBg = false;
+
 function refreshBg() {
+    if (isRefreshingBg) {
+        bgLog('refreshBg() 正在刷新中，忽略点击');
+        return;
+    }
+    isRefreshingBg = true;
+    
+    var $btn = $("#bg-refresh");
+    var $icon = $btn.find('.refresh-icon, i');
+    if ($icon.length === 0) $icon = $btn;
+    $icon.css('animation', 'spin-continuous 1s linear infinite');
+    
+    function done() {
+        isRefreshingBg = false;
+        $icon.css('animation', '');
+        bgLog('refreshBg() 刷新流程完成');
+    }
+
     var bg_img = getBgImg();
     var currentType = bg_img["type"];
     bgLog('refreshBg() 手动刷新! type=', currentType);
@@ -527,7 +584,7 @@ function refreshBg() {
                     tries++;
                 }
             }
-            applyBgNew(DEFAULT_BG_LIST[rd], true);
+            applyBgNew(DEFAULT_BG_LIST[rd], true, done);
             break;
         case "2":
         case "3":
@@ -539,13 +596,18 @@ function refreshBg() {
                 "4": 'https://t.mwm.moe/fj',
                 "5": 'https://t.mwm.moe/mp',
             };
-            applyBgWithCache(currentType, baseUrls[currentType], bg_img, true);
+            applyBgWithCache(currentType, baseUrls[currentType], bg_img, true, false, done);
             break;
         case "6":
             if (bg_img["path"]) {
                 var finalUrl = buildBgUrl(bg_img["path"], getBgApiKey());
-                applyBgWithCache("6", finalUrl, bg_img, true);
+                applyBgWithCache("6", finalUrl, bg_img, true, false, done);
+            } else {
+                done(); 
             }
+            break;
+        default:
+            done();
             break;
     }
 }
@@ -557,6 +619,7 @@ function refreshBg() {
 function applyFitMode(enabled) {
     var $body = $('body');
     var $ambient = $('#bg-ambient');
+    var $ambientNew = $('#bg-ambient-new');
     var $bg = $('#bg');
     if (enabled) {
         $body.addClass('bg-fit');
@@ -567,7 +630,11 @@ function applyFitMode(enabled) {
     } else {
         $body.removeClass('bg-fit');
         $ambient.css({ opacity: 0 });
-        setTimeout(function () { $ambient.css({ display: 'none', backgroundImage: 'none' }); }, 1000);
+        $ambientNew.css({ opacity: 0 });
+        setTimeout(function () { 
+            $ambient.css({ display: 'none', backgroundImage: 'none' });
+            $ambientNew.css({ display: 'none', backgroundImage: 'none' });
+        }, 1000);
     }
 }
 
@@ -756,11 +823,6 @@ function setBgImgInit() {
 $(function () {
     // 刷新背景按钮
     $("#bg-refresh").click(function () {
-        var $btn = $(this);
-        $btn.css({ transition: 'transform 0.6s ease', transform: 'rotate(360deg)' });
-        setTimeout(function () {
-            $btn.css({ transition: 'none', transform: 'rotate(0deg)' });
-        }, 650);
         refreshBg();
     });
 

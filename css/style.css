@@ -121,7 +121,7 @@ img.error {
 }
 
 /* 比例自适应：模糊背景层（ambient mode） */
-#bg-ambient {
+#bg-ambient, #bg-ambient-new {
     position: fixed;
     left: -5%;
     top: -5%;
@@ -133,7 +133,7 @@ img.error {
     background-repeat: no-repeat;
     filter: blur(30px) brightness(0.6);
     transform: scale(1.05);
-    transition: opacity 1s ease;
+    transition: opacity 1.5s ease;
     opacity: 0;
 }
 
@@ -351,15 +351,11 @@ body:not(.bg-fit) #bg-new {
 }
 
 .weather-detail {
-    display: flex;
     gap: 14px;
-    margin-top: 6px;
-    opacity: 0.7;
     font-size: 0.85rem;
     color: #efefef;
     text-shadow: var(--main-text-shadow);
-    animation: fade 0.5s ease;
-    will-change: opacity, height;
+    will-change: opacity, max-height, transform;
 }
 
 .wea-detail-item {
@@ -1302,3 +1298,18 @@ input[type="radio"]:checked+label {
     height: 100%;
     position: absolute;
 }
+
+/* 美化设置页面中的复选框 */
+.wallpaper-cache-label input[type="checkbox"] { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--main-text-color); outline: none; cursor: pointer; vertical-align: middle; margin-right: 8px; position: relative; transition: all 0.2s ease; background: transparent; opacity: 0.6; }
+.wallpaper-cache-label input[type="checkbox"]:hover { opacity: 1; }
+.wallpaper-cache-label input[type="checkbox"]:checked { background-color: var(--main-text-color); opacity: 0.9; }
+.wallpaper-cache-label input[type="checkbox"]:checked::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--main-text-form-color); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.wallpaper-cache-label { cursor: pointer; display: flex; align-items: center; }
+
+
+/* 天气展开动画优化 */
+#weather-detail { opacity: 0; max-height: 0; margin-top: 0; overflow: hidden; transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, margin-top 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+#weather-detail.show { opacity: 0.9; max-height: 80px; margin-top: 6px; }
+.tool-all { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s; }
+.tool-all.weather-open { transform: translateY(-135%); }
+

@@ -515,37 +515,6 @@ $(function () {
             message: enabled ? '已开启比例自适应（完整显示 + 模糊填充）' : '已关闭比例自适应（铺满裁剪）'
         });
     });
-
-    // 缓存启用切换
-    $("#wallpaper-cache-enable").on("change", function () {
-        if ($(this).is(":checked")) {
-            $("#wallpaper_cache_duration").show();
-            $("#wallpaper_cache_save_row").show();
-        } else {
-            $("#wallpaper_cache_duration").hide();
-            $("#wallpaper_cache_save_row").hide();
-        }
-    });
-
-    // 缓存设置保存
-    $(".wallpaper_cache_save").click(function () {
-        var bg_img = getBgImg();
-        var enabled = !!$("#wallpaper-cache-enable").is(":checked");
-        bg_img["cache"] = enabled;
-        if (enabled) {
-            var hours = parseInt($("#wallpaper-cache-hours").val(), 10);
-            if (isNaN(hours) || hours < 1) hours = CACHE_DURATION_DEFAULT;
-            if (hours > CACHE_DURATION_MAX) hours = CACHE_DURATION_MAX;
-            bg_img["cacheDuration"] = hours;
-        } else {
-            clearBgCache();
-        }
-        setBgImg(bg_img);
-        iziToast.show({
-            message: enabled ? ('壁纸缓存已启用，有效期 ' + bg_img["cacheDuration"] + ' 小时，刷新生效') : '壁纸缓存已关闭，刷新生效'
-        });
-    });
-
     // ═══════════════════════════════════════════════════════════
     // 数据备份 事件
     // ═══════════════════════════════════════════════════════════
