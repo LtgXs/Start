@@ -44,6 +44,11 @@ p.loading-title {
     background-color: #37474f;
 }
 
+#loading-box.loaded {
+    pointer-events: none;
+    z-index: -1;
+}
+
 div.loaded div.loading-left-bg {
     transform: translate(-100%, 0);
 }

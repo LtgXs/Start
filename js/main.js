@@ -1,20 +1,33 @@
+/* ============================================
+ * Snavigation - App Entry (main.js)
+ * 入口整合：页面揭幕、欢迎问候、时钟、
+ *           天气获取、键盘快捷键、全局交互
+ * 依赖：所有前置模块（storage→wallpaper→search→bookmarks→settings）
+ * ============================================ */
+
 // ─── 页面揭幕 ────────────────────────────────────────────────────
 var _revealed = false;
 function revealPage() {
     if (_revealed) { console.log('[bg:main] revealPage() 跳过 (已揭幕)'); return; }
     _revealed = true;
-    console.log('[bg:main] revealPage() 揭幕! performance.now=', (performance.now?performance.now().toFixed(0):'?'));
+    console.log('[bg:main] revealPage() 揭幕! performance.now=', (performance.now ? performance.now().toFixed(0) : '?'));
     $('#loading-box').attr('class', 'loaded');
     $('#bg').css('cssText', 'transform: scale(1);filter: blur(0px);transition: ease 1.5s;');
     $('#section').css('cssText', 'opacity: 1;transition: ease 1.5s;');
     $('.cover').css('cssText', 'opacity: 1;transition: ease 1.5s;');
 }
-var _revealFallbackTimer = setTimeout(function () { console.log('[bg:main] ⚠ 5000ms 兜底超时触发!'); revealPage(); }, 5000);
+var _revealFallbackTimer = setTimeout(function () {
+    console.log('[bg:main] ⚠ 5000ms 兜底超时触发!');
+    revealPage();
+}, 5000);
 console.log('[bg:main] main.js 加载完成, 兜底定时器已设置 (5000ms)');
 
-// window.load — 所有资源就绪后再执行欢迎提示和字体加载（不阻塞页面展示）
+// ══════════════════════════════════════════════════════════════════
+// window.load — 欢迎提示 + 字体加载（不阻塞页面展示）
+// ══════════════════════════════════════════════════════════════════
+
 window.addEventListener('load', function () {
-    //用户欢迎
+    // 用户欢迎 Toast 全局配置
     iziToast.settings({
         timeout: 3000,
         backgroundColor: '#ffffff40',
@@ -29,29 +42,19 @@ window.addEventListener('load', function () {
         displayMode: 'replace',
         layout: '1'
     });
+
     setTimeout(function () {
-        // 根据当前时间计算问候语（在回调中计算，避免跨小时打开时问候语过时）
         var now = new Date(), hour = now.getHours();
         var hello;
-        if (hour < 6) {
-            hello = "凌晨好";
-        } else if (hour < 9) {
-            hello = "早上好";
-        } else if (hour < 12) {
-            hello = "上午好";
-        } else if (hour < 14) {
-            hello = "中午好";
-        } else if (hour < 17) {
-            hello = "下午好";
-        } else if (hour < 19) {
-            hello = "傍晚好";
-        } else if (hour < 22) {
-            hello = "晚上好";
-        } else {
-            hello = "夜深了";
-        }
+        if (hour < 6)      { hello = "凌晨好"; }
+        else if (hour < 9)  { hello = "早上好"; }
+        else if (hour < 12) { hello = "上午好"; }
+        else if (hour < 14) { hello = "中午好"; }
+        else if (hour < 17) { hello = "下午好"; }
+        else if (hour < 19) { hello = "傍晚好"; }
+        else if (hour < 22) { hello = "晚上好"; }
+        else                { hello = "夜深了"; }
 
-        // 构建带天气的欢迎信息
         var greetMsg = '欢迎来到 Snavigation';
         if (window._weatherData && window._weatherData.current) {
             var cur = window._weatherData.current;
@@ -63,24 +66,25 @@ window.addEventListener('load', function () {
                 greetMsg += '（' + window._weatherData.location.City + '）';
             }
         }
+
         iziToast.show({
             title: hello,
             message: greetMsg
         });
     }, 800);
 
-    //中文字体缓加载-此处写入字体源文件
-    //先行加载简体中文子集，后续补全字集
-    //由于压缩过后的中文字体仍旧过大，可转移至对象存储或 CDN 加载
-    const font = new FontFace(
+    // 中文字体缓加载
+    var font = new FontFace(
         "MiSans",
         "url(" + "./font/MiSans-Regular.woff2" + ")"
     );
     document.fonts.add(font);
+}, false);
 
-}, false)
+// ══════════════════════════════════════════════════════════════════
+// 时钟
+// ══════════════════════════════════════════════════════════════════
 
-//获取时间
 var t = null;
 t = setTimeout(time, 1000);
 
@@ -94,17 +98,17 @@ function time() {
     var h = dt.getHours();
     var hour = h;
     var m = dt.getMinutes();
-    if (h < 10) {
-        h = "0" + h;
-    }
-    if (m < 10) {
-        m = "0" + m;
-    }
+    if (h < 10) { h = "0" + h; }
+    if (m < 10) { m = "0" + m; }
     $("#time_text").html(h + '<span id="point">:</span>' + m);
     $("#day").html(mm + "&nbsp;月&nbsp;" + d + "&nbsp;日&nbsp;" + weekday[day]);
     document.documentElement.style.setProperty('--time-hue', (hour * 15) + 'deg');
     t = setTimeout(time, 1000);
 }
+
+// ══════════════════════════════════════════════════════════════════
+// 天气视觉
+// ══════════════════════════════════════════════════════════════════
 
 function applyWeatherVisual(desc) {
     var $weather = $('#weather-main');
@@ -126,8 +130,10 @@ function applyWeatherVisual(desc) {
     $('#weather_icon').text(icon);
 }
 
-//获取天气 - 使用 MSN/Bing 公开天气 API（无需注册 API Key）
-//基于 IP 自动定位，每 30 分钟刷新一次
+// ══════════════════════════════════════════════════════════════════
+// 获取天气 - MSN/Bing 公开 API（每 30 分钟刷新）
+// ══════════════════════════════════════════════════════════════════
+
 (function fetchWeather() {
     var weatherApiUrl = 'https://assets.msn.com/service/segments/recoitems/weather?'
         + 'apikey=UhJ4G66OjyLbn9mXARgajXLiLw6V75sHnfpU60aJBB'
@@ -154,7 +160,6 @@ function applyWeatherVisual(desc) {
             return response.json();
         })
         .then(function (items) {
-            // 从返回数组中查找天气摘要
             var weatherItem = null;
             if (Array.isArray(items)) {
                 for (var i = 0; i < items.length; i++) {
@@ -175,7 +180,6 @@ function applyWeatherVisual(desc) {
                 throw new Error('天气数据解析失败');
             }
 
-            // 防御性检查嵌套结构
             if (!data.responses || !data.responses[0] ||
                 !data.responses[0].weather || !data.responses[0].weather[0]) {
                 throw new Error('天气数据结构异常');
@@ -186,7 +190,6 @@ function applyWeatherVisual(desc) {
             var today = weather.forecast && weather.forecast.days && weather.forecast.days[0]
                 ? weather.forecast.days[0].daily : null;
 
-            // 更新天气显示
             if (current && current.cap) {
                 $('#wea_text').text(current.cap);
                 applyWeatherVisual(current.cap);
@@ -195,17 +198,14 @@ function applyWeatherVisual(desc) {
                 $('#tem1').text(today.tempHi);
                 $('#tem2').text(today.tempLo);
             } else if (current) {
-                // 无预报时用当前温度填充
                 $('#tem1').text(current.temp);
                 $('#tem2').text(current.temp);
             }
 
-            // 显示城市名称
             if (data.userProfile && data.userProfile.location && data.userProfile.location.City) {
                 $('#wea_city').text(data.userProfile.location.City);
             }
 
-            // 将完整天气数据缓存到 window 供后续使用
             window._weatherData = {
                 current: current,
                 forecast: weather.forecast,
@@ -213,7 +213,6 @@ function applyWeatherVisual(desc) {
                 updatedAt: new Date().toLocaleTimeString()
             };
 
-            // 填充详细天气信息
             if (current) {
                 if (current.feels !== undefined) $('#wea_feels').text(current.feels);
                 if (current.rh !== undefined) $('#wea_hum').text(current.rh);
@@ -228,19 +227,16 @@ function applyWeatherVisual(desc) {
                     $('#wea_uv').text(current.uv);
                 }
             }
-            // 成功时 10 分钟后刷新
             setTimeout(fetchWeather, 10 * 60 * 1000);
         })
         .catch(function (err) {
             console.warn('MSN 天气数据获取失败:', err);
-            // 回退到 wttr.in（无需 API Key 的开源天气服务）
             fetchWeatherFallback();
-            // 失败时 5 分钟后重试
             setTimeout(fetchWeather, 5 * 60 * 1000);
         });
 })();
 
-// wttr.in 备用天气源（MSN API 不可用时使用）
+// wttr.in 备用天气源
 function fetchWeatherFallback() {
     fetch('https://wttr.in/?format=j1')
         .then(function (response) {
@@ -250,13 +246,11 @@ function fetchWeatherFallback() {
         .then(function (data) {
             if (data.current_condition && data.current_condition[0]) {
                 var cc = data.current_condition[0];
-                // 优先使用中文描述
                 var desc = cc.lang_zh && cc.lang_zh[0] ? cc.lang_zh[0].value : cc.weatherDesc[0].value;
                 $('#wea_text').text(desc);
                 applyWeatherVisual(desc);
                 $('#tem1').text(cc.temp_C);
                 $('#tem2').text(cc.temp_C);
-                // 详细天气
                 if (cc.FeelsLikeC) $('#wea_feels').text(cc.FeelsLikeC);
                 if (cc.humidity) $('#wea_hum').text(cc.humidity);
                 if (cc.windspeedKmph) {
@@ -280,15 +274,13 @@ function fetchWeatherFallback() {
             console.warn('备用天气源也获取失败:', err);
         });
 }
-    
-//Tab书签页
-$(function () {
-    $(".mark .tab .tab-item").click(function () {
-        $(this).addClass("active").siblings().removeClass("active");
-        $(".products .mainCont").eq($(this).index()).css("display", "flex").siblings().css("display", "none");
-    });
 
-    // 天气点击展开/收起详情
+// ══════════════════════════════════════════════════════════════════
+// DOM Ready：绑定全局交互事件
+// ══════════════════════════════════════════════════════════════════
+
+$(function () {
+    // ── 天气点击展开/收起详情 ──────────────────────────────────
     $("#weather-main").click(function () {
         var $main = $(this);
         $("#weather-detail").slideToggle(350, function () {
@@ -296,99 +288,71 @@ $(function () {
             $main.attr('aria-expanded', expanded);
         });
     });
-})
 
-//设置
-$(function () {
-    $(".set .tabs .tab-items").click(function () {
-        $(this).addClass("actives").siblings().removeClass("actives");
-        $(".productss .mainConts").eq($(this).index()).css("display", "flex").siblings().css("display", "none");
-    })
-})
-
-//输入框为空时阻止跳转
-$(window).keydown(function (e) {
-    if (e.key === "Escape") {
-        if ($("#shortcuts-modal").is(':visible')) {
-            $("#shortcuts-modal").fadeOut(120).attr('aria-hidden', 'true');
-            return;
+    // ── 键盘快捷键 ─────────────────────────────────────────────
+    $(window).keydown(function (e) {
+        if (e.key === "Escape") {
+            if ($("#shortcuts-modal").is(':visible')) {
+                $("#shortcuts-modal").fadeOut(120).attr('aria-hidden', 'true');
+                return;
+            }
+        } else if (e.key === "Enter") {
+            if ($("body").hasClass("onsearch") && $(".wd").val() === "") {
+                e.preventDefault();
+                return false;
+            }
         }
-    } else if (e.key === "Enter") {
-        if ($("body").hasClass("onsearch") && $(".wd").val() === "") {
+        if (e.key === "?") {
             e.preventDefault();
-            return false;
+            var show = $("#shortcuts-modal").is(':hidden');
+            $("#shortcuts-modal").fadeToggle(120).attr('aria-hidden', show ? 'false' : 'true');
+        } else if (e.key === "h" || e.key === "H") {
+            e.preventDefault();
+            var showAlt = $("#shortcuts-modal").is(':hidden');
+            $("#shortcuts-modal").fadeToggle(120).attr('aria-hidden', showAlt ? 'false' : 'true');
+        } else if (e.key === "/") {
+            e.preventDefault();
+            $(".wd").focus();
+            if (typeof focusWd === 'function') focusWd();
+        } else if (e.key === "s" || e.key === "S") {
+            var active = document.activeElement;
+            var isTyping = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+            if (isTyping) return;
+            if (!$("#menu").hasClass('on')) $("#menu").trigger('click');
+        } else if (e.key === "b" || e.key === "B") {
+            var activeEl = document.activeElement;
+            var typing = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+            if (typing) return;
+            if ($("#menu").hasClass('on')) $("#menu").trigger('click');
+            if (!$("#content").hasClass('box')) $("#time_text").trigger('click');
         }
-    }
-    if (e.key === "?") {
-        e.preventDefault();
-        var show = $("#shortcuts-modal").is(':hidden');
-        $("#shortcuts-modal").fadeToggle(120).attr('aria-hidden', show ? 'false' : 'true');
-    } else if (e.key === "h" || e.key === "H") {
-        e.preventDefault();
-        var showAlt = $("#shortcuts-modal").is(':hidden');
-        $("#shortcuts-modal").fadeToggle(120).attr('aria-hidden', showAlt ? 'false' : 'true');
-    } else if (e.key === "/") {
-        e.preventDefault();
-        $(".wd").focus();
-        if (typeof focusWd === 'function') focusWd();
-    } else if (e.key === "s" || e.key === "S") {
-        var active = document.activeElement;
-        var isTyping = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
-        if (isTyping) return;
-        if (!$("#menu").hasClass('on')) $("#menu").trigger('click');
-    } else if (e.key === "b" || e.key === "B") {
-        var activeEl = document.activeElement;
-        var typing = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
-        if (typing) return;
-        if ($("#menu").hasClass('on')) $("#menu").trigger('click');
-        if (!$("#content").hasClass('box')) $("#time_text").trigger('click');
-    }
-});
+    });
 
-//点击搜索按钮
-$(".sou-button").click(function () {
-    if ($("body").hasClass("onsearch")) {
-        if ($(".wd").val() !== "") {
-            $("#search-submit").click();
+    // ── 搜索按钮点击 ───────────────────────────────────────────
+    $(".sou-button").click(function () {
+        if ($("body").hasClass("onsearch")) {
+            if ($(".wd").val() !== "") {
+                $("#search-submit").click();
+            }
         }
-    }
+    });
+
+    // ── 鼠标中键点击（切换书签面板）────────────────────────────
+    $(window).mousedown(function (event) {
+        if (event.button === 1 && !$(event.target).closest('a').length) {
+            $("#time_text").click();
+        }
+    });
 });
 
-//鼠标中键点击事件
-$(window).mousedown(function (event) {
-    if (event.button === 1 && !$(event.target).closest('a').length) {
-        $("#time_text").click();
-    }
-});
+// ══════════════════════════════════════════════════════════════════
+// 控制台欢迎输出
+// ══════════════════════════════════════════════════════════════════
 
-//控制台输出
-var styleTitle1 = `
-font-size: 20px;
-font-weight: 600;
-color: rgb(244,167,89);
-`
-var styleTitle2 = `
-font-size:12px;
-color: rgb(244,167,89);
-`
-var styleContent = `
-color: rgb(30,152,255);
-`
-var title1 = 'Snavigation'
-var title2 = `
-
-/$$               /$$            /$$$$$$ 
-| $$              | $$           /$$__  $$
-| $$             /$$$$$$        | $$  \__/
-| $$            |_  $$_/        | $$ /$$$$
-| $$              | $$          | $$|_  $$
-| $$              | $$ /$$      | $$  \ $$
-| $$$$$$$$        |  $$$$/      |  $$$$$$/
-|________/         \___/         \______/ 
-                                                                                                                                              
-`
-var content = `
-Github:  https://github.com/imsyy/Snavigation
-`
-console.log(`%c${title1} %c${title2}
-%c${content}`, styleTitle1, styleTitle2, styleContent)
+var styleTitle1 = 'font-size: 20px; font-weight: 600; color: rgb(244,167,89);';
+var styleTitle2 = 'font-size:12px; color: rgb(244,167,89);';
+var styleContent = 'color: rgb(30,152,255);';
+var title1 = 'Snavigation';
+var title2 = '\n\n/$$               /$$            /$$$$$$ \n| $$              | $$           /$$__  $$\n| $$             /$$$$$$        | $$  \\__/\n| $$            |_  $$_/        | $$ /$$$$\n| $$              | $$          | $$|_  $$\n| $$              | $$ /$$      | $$  \\ $$\n| $$$$$$$$        |  $$$$/      |  $$$$$$/\n|________/         \\___/         \\______/ \n\n';
+var content = 'Github:  https://github.com/imsyy/Snavigation\n';
+console.log('%c' + title1 + ' %c' + title2 + '%c' + content, styleTitle1, styleTitle2, styleContent);
