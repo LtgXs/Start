@@ -7,31 +7,17 @@
 
 // 获取搜索引擎列表
 function getSeList() {
-    var se_list_local = Storage.get('se_list');
-    if (se_list_local !== "{}" && se_list_local) {
-        try {
-            return JSON.parse(se_list_local);
-        } catch (e) {
-            console.warn('se_list 数据损坏，已重置:', e);
-            Storage.remove('se_list');
-        }
-    }
-    setSeList(se_list_preinstall);
-    return se_list_preinstall;
+    return readStoredObject(APP_STORAGE_KEYS.searchList, se_list_preinstall);
 }
 
 // 设置搜索引擎列表
 function setSeList(se_list) {
-    if (se_list) {
-        Storage.set('se_list', se_list);
-        return true;
-    }
-    return false;
+    return writeStoredObject(APP_STORAGE_KEYS.searchList, se_list);
 }
 
 // 获得默认搜索引擎
 function getSeDefault() {
-    var se_default = Storage.get('se_default');
+    var se_default = Storage.get(APP_STORAGE_KEYS.searchDefault);
     return se_default ? se_default : "1";
 }
 
@@ -106,14 +92,15 @@ function searchData() {
 function seList() {
     var html = "";
     var se_list = getSeList();
-    for (var i in se_list) {
-        var safeTitle = escapeHtml(se_list[i]["title"]);
-        var safeUrl = escapeHtml(se_list[i]["url"]);
-        var safeName = escapeHtml(se_list[i]["name"]);
-        var safeIcon = escapeHtml(se_list[i]["icon"]);
+    Object.keys(se_list).forEach(function (i) {
+        var item = se_list[i];
+        var safeTitle = escapeHtml(item["title"]);
+        var safeUrl = escapeHtml(item["url"]);
+        var safeName = escapeHtml(item["name"]);
+        var safeIcon = escapeHtml(item["icon"]);
         html += '<div class=\'se-li\' data-url=\'' + safeUrl + '\' data-name=\'' + safeName + '\' data-icon=\'' + safeIcon + '\'>' +
             '<a class=\'se-li-text\'><i class=\'icon-sou-list ' + safeIcon + '\'></i><span>' + safeTitle + '</span></a></div>';
-    }
+    });
     $(".search-engine-list").html(html);
 }
 
@@ -131,7 +118,7 @@ $(function () {
     // ── 全局点击：搜索引擎下拉 & 自动提示 ─────────────────────
     $(document).on('click', function (e) {
         // 选择搜索引擎点击
-        if ($(".search-engine").is(":hidden") && $(".se").is(e.target) || $(".search-engine").is(":hidden") && $("#icon-se").is(e.target)) {
+        if (($(".search-engine").is(":hidden") && $(".se").is(e.target)) || ($(".search-engine").is(":hidden") && $("#icon-se").is(e.target))) {
             if ($(".se").is(e.target) || $("#icon-se").is(e.target)) {
                 $(".search-engine").css("width", $('.sou').width() - 30);
                 $(".search-engine").slideDown(160);

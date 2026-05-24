@@ -7,26 +7,12 @@
 
 // 获取快捷方式列表
 function getQuickList() {
-    var quick_list_local = Storage.get('quick_list');
-    if (quick_list_local !== "{}" && quick_list_local) {
-        try {
-            return JSON.parse(quick_list_local);
-        } catch (e) {
-            console.warn('quick_list 数据损坏，已重置:', e);
-            Storage.remove('quick_list');
-        }
-    }
-    setQuickList(quick_list_preinstall);
-    return quick_list_preinstall;
+    return readStoredObject(APP_STORAGE_KEYS.quickList, quick_list_preinstall);
 }
 
 // 设置快捷方式列表
 function setQuickList(quick_list) {
-    if (quick_list) {
-        Storage.set('quick_list', quick_list);
-        return true;
-    }
-    return false;
+    return writeStoredObject(APP_STORAGE_KEYS.quickList, quick_list);
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -36,14 +22,15 @@ function setQuickList(quick_list) {
 function quickData() {
     var html = "";
     var quick_list = getQuickList();
-    for (var i in quick_list) {
-        var safeTitle = escapeHtml(quick_list[i]['title']);
-        var rawUrl = quick_list[i]['url'];
+    Object.keys(quick_list).forEach(function (i) {
+        var item = quick_list[i];
+        var safeTitle = escapeHtml(item['title']);
+        var rawUrl = item['url'];
         var safeUrl = isValidUrl(rawUrl) ? escapeHtml(rawUrl) : '#';
         html += '<div class="quick">' +
                     '<a href="' + safeUrl + '" target="_blank" rel="noopener noreferrer">' + safeTitle + '</a>' +
                 '</div>';
-    }
+    });
     $(".quick-all").html(html + '<div class="quick"><a id="set-quick"><i class="iconfont icon-tianjia-"></i></a></div>');
 }
 

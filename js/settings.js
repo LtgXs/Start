@@ -166,7 +166,7 @@ $(function () {
             message: '是否设置为默认搜索引擎？',
             buttons: [
                 ['<button>确认</button>', function (instance, toast) {
-                    Storage.set('se_default', name);
+                    Storage.set(APP_STORAGE_KEYS.searchDefault, name);
                     setSeInit();
                     instance.hide({ transitionOut: 'flipOutX' }, toast, 'buttonName');
                     iziToast.show({ message: '设置成功' });
@@ -296,7 +296,7 @@ $(function () {
             buttons: [
                 ['<button>确认</button>', function (instance, toast) {
                     setSeList(se_list_preinstall);
-                    Storage.set('se_default', '1');
+                    Storage.set(APP_STORAGE_KEYS.searchDefault, '1');
                     setSeInit();
                     instance.hide({ transitionOut: 'flipOutX' }, toast, 'buttonName');
                     iziToast.show({ message: '重置成功' });
@@ -555,7 +555,7 @@ $(function () {
                 message: '当前数据将会被覆盖！是否继续导入？',
                 buttons: [
                     ['<button>确认</button>', function (instance, toast) {
-                        var allowedKeys = ['se_list', 'quick_list', 'bg_img', 'se_default'];
+                        var allowedKeys = ['se_list', 'quick_list', 'bg_img', 'se_default', APP_STORAGE_KEYS.wallpaperApiKey];
                         for (var key in mydata) {
                             if (allowedKeys.indexOf(key) !== -1) {
                                 if (key === 'se_list' || key === 'quick_list') {
