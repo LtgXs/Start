@@ -191,10 +191,7 @@ var DEFAULT_BG_LIST = [
     './img/background10.webp'
 ];
 var FALLBACK_BG_URL = './img/background1.webp';
-var ULTIMATE_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080">' +
-    '<rect width="1920" height="1080" fill="#2a2a2a"/></svg>'
-);
+var ULTIMATE_FALLBACK = './img/background1.webp';
 
 /**
  * 下载文本为文件

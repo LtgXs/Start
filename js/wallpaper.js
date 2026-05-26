@@ -46,10 +46,87 @@ var DEFAULT_BG_LIST = [
     './img/background10.webp'
 ];
 var FALLBACK_BG_URL = './img/background1.webp';
-var ULTIMATE_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080">' +
-    '<rect width="1920" height="1080" fill="#2a2a2a"/></svg>'
-);
+var ULTIMATE_FALLBACK = './img/background1.webp';
+
+// ── IndexedDB Cache Wrapper ──────────────────────────────────────────
+var dbName = "SnavigationDB";
+var storeName = "wallpapers";
+var dbVersion = 1;
+
+function getDB() {
+    return new Promise(function (resolve, reject) {
+        var request = indexedDB.open(dbName, dbVersion);
+        request.onupgradeneeded = function (e) {
+            var db = e.target.result;
+            if (!db.objectStoreNames.contains(storeName)) {
+                db.createObjectStore(storeName);
+            }
+        };
+        request.onsuccess = function (e) {
+            resolve(e.target.result);
+        };
+        request.onerror = function (e) {
+            reject(e.target.error);
+        };
+    });
+}
+
+function getIndexedDBCache(key) {
+    return getDB().then(function (db) {
+        return new Promise(function (resolve, reject) {
+            var transaction = db.transaction([storeName], "readonly");
+            var store = transaction.objectStore(storeName);
+            var request = store.get(key);
+            request.onsuccess = function (e) {
+                resolve(e.target.result || null);
+            };
+            request.onerror = function (e) {
+                reject(e.target.error);
+            };
+        });
+    }).catch(function (err) {
+        bgLog("IndexedDB get error:", err);
+        return null;
+    });
+}
+
+function setIndexedDBCache(key, val) {
+    return getDB().then(function (db) {
+        return new Promise(function (resolve, reject) {
+            var transaction = db.transaction([storeName], "readwrite");
+            var store = transaction.objectStore(storeName);
+            var request = store.put(val, key);
+            request.onsuccess = function () {
+                resolve(true);
+            };
+            request.onerror = function (e) {
+                reject(e.target.error);
+            };
+        });
+    }).catch(function (err) {
+        bgLog("IndexedDB put error:", err);
+        return false;
+    });
+}
+
+function removeIndexedDBCache(key) {
+    return getDB().then(function (db) {
+        return new Promise(function (resolve, reject) {
+            var transaction = db.transaction([storeName], "readwrite");
+            var store = transaction.objectStore(storeName);
+            var request = store.delete(key);
+            request.onsuccess = function () {
+                resolve(true);
+            };
+            request.onerror = function (e) {
+                reject(e.target.error);
+            };
+        });
+    }).catch(function (err) {
+        bgLog("IndexedDB delete error:", err);
+        return false;
+    });
+}
 
 // ══════════════════════════════════════════════════════════════════
 // 壁纸配置读写
@@ -102,8 +179,22 @@ function getLastBgUrl() {
     bgLog('getLastBgUrl() =', (v ? v.substring(0, 80) + (v.length > 80 ? '...' : '') : '(空)'));
     return v;
 }
+function isRandomApiUrl(url) {
+    if (!url) return false;
+    var u = url.toLowerCase();
+    if (u.indexOf('t.mwm.moe') !== -1) return true;
+    if (u.indexOf('t.alcy.cc') !== -1 && u.indexOf('?json') === -1 && u.indexOf('.jpg') === -1 && u.indexOf('.png') === -1 && u.indexOf('.webp') === -1) return true;
+    if (u.indexOf('picsum.photos') !== -1 && u.indexOf('/id/') === -1 && u.indexOf('/seed/') === -1) return true;
+    if (u.indexOf('bing.biturl.top') !== -1 && u.indexOf('format=image') !== -1) return true;
+    return false;
+}
+
 function setLastBgUrl(url) {
     if (url) {
+        if (url.indexOf('data:image/') === 0) {
+            bgLog('setLastBgUrl() 跳过 base64 数据写入');
+            return;
+        }
         bgLog('setLastBgUrl() 写入:', url.substring(0, 80) + (url.length > 80 ? '...' : ''));
         localStorage.setItem(BG_LAST_URL_KEY, url);
     }
@@ -126,41 +217,49 @@ function setLastBgType(type) {
 // ══════════════════════════════════════════════════════════════════
 
 function getCachedBgData() {
-    try {
-        var raw = localStorage.getItem(BG_IMG_DATA_KEY);
-        if (!raw) { bgLog('getCachedBgData() = null (localStorage 中无数据)'); return null; }
-        if (raw.indexOf('data:image/') !== 0) { bgLog('getCachedBgData() = null (非有效 data URL, 前20字符:', raw.substring(0, 20) + ')'); return null; }
-        bgLog('getCachedBgData() 命中! 长度:', raw.length, 'chars, 开头:', raw.substring(0, 50) + '...');
-        return raw;
-    } catch (e) {
-        bgLog('getCachedBgData() 异常:', e);
-        return null;
-    }
+    return getIndexedDBCache(BG_IMG_DATA_KEY).then(function (cachedData) {
+        if (!cachedData) {
+            try {
+                var raw = localStorage.getItem(BG_IMG_DATA_KEY);
+                if (raw && raw.indexOf('data:image/') === 0) {
+                    bgLog('getCachedBgData() 找到 legacy localStorage 缓存，进行迁移...');
+                    setIndexedDBCache(BG_IMG_DATA_KEY, raw);
+                    localStorage.removeItem(BG_IMG_DATA_KEY);
+                    return raw;
+                }
+            } catch (e) {
+                bgLog('getCachedBgData() legacy migration error:', e);
+            }
+            return null;
+        }
+        return cachedData;
+    });
 }
 
 function setCachedBgData(dataUrl) {
     if (!dataUrl || dataUrl.indexOf('data:image/') !== 0) {
         bgLog('setCachedBgData() 跳过 (无效 data URL)');
-        return;
+        return Promise.resolve(false);
     }
     if (dataUrl.length > BG_IMG_DATA_MAX) {
         bgLog('setCachedBgData() 跳过 (过大:', (dataUrl.length / 1000000).toFixed(1), 'MB > 限制', (BG_IMG_DATA_MAX / 1000000).toFixed(0), 'MB)');
         console.warn('[bg cache] base64 数据过大，跳过缓存 (' + (dataUrl.length / 1000000).toFixed(1) + 'MB)');
-        return;
+        return Promise.resolve(false);
     }
-    try {
-        localStorage.setItem(BG_IMG_DATA_KEY, dataUrl);
-        bgLog('setCachedBgData() 成功! 长度:', dataUrl.length, 'chars (', (dataUrl.length / 1000000).toFixed(2), 'MB)');
-    } catch (e) {
-        bgLog('setCachedBgData() 写入失败:', e.message, '| 清理后重试...');
-        console.warn('[bg cache] 保存 base64 失败，清理后重试:', e);
-        try { localStorage.removeItem(BG_IMG_DATA_KEY); } catch (e2) { }
-    }
+    return setIndexedDBCache(BG_IMG_DATA_KEY, dataUrl).then(function (success) {
+        if (success) {
+            bgLog('setCachedBgData() 成功! 长度:', dataUrl.length, 'chars (', (dataUrl.length / 1000000).toFixed(2), 'MB)');
+        } else {
+            bgLog('setCachedBgData() IndexedDB 写入失败');
+        }
+        return success;
+    });
 }
 
 function clearCachedBgData() {
     bgLog('clearCachedBgData() 清除 base64 缓存');
     try { localStorage.removeItem(BG_IMG_DATA_KEY); } catch (e) { }
+    return removeIndexedDBCache(BG_IMG_DATA_KEY);
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -198,16 +297,23 @@ function compressAndCacheDataUrl(dataUrl, callback) {
         var compressed = imageToBase64(img);
         if (compressed) {
             bgLog('compressAndCacheDataUrl() 压缩成功，调用 setCachedBgData');
-            setCachedBgData(compressed);
+            setCachedBgData(compressed).then(function() {
+                callback(compressed);
+            });
         } else {
             bgLog('compressAndCacheDataUrl() 压缩失败，使用原始数据');
+            callback(dataUrl);
         }
-        callback(compressed || dataUrl);
     };
     img.onerror = function () {
         bgLog('compressAndCacheDataUrl() 图片解码失败，尝试存原始数据');
-        if (dataUrl.length <= BG_IMG_DATA_MAX) setCachedBgData(dataUrl);
-        callback(dataUrl);
+        if (dataUrl.length <= BG_IMG_DATA_MAX) {
+            setCachedBgData(dataUrl).then(function() {
+                callback(dataUrl);
+            });
+        } else {
+            callback(dataUrl);
+        }
     };
     img.src = dataUrl;
 }
@@ -232,11 +338,13 @@ function setWithFallback($img, url, nextFallback) {
         if (handled) return;
         handled = true;
         bgLog('setWithFallback() 图片加载失败! url=', url.substring(0, 60), '→ 回退');
-        if (fallback && fallback !== url) {
+        if (fallback && fallback !== url && fallback !== ULTIMATE_FALLBACK) {
             setWithFallback($img, fallback, ULTIMATE_FALLBACK);
+        } else if (fallback && fallback !== url) {
+            setWithFallback($img, fallback, null);
         } else {
             bgLog('setWithFallback() 到达终极兜底');
-            $img.attr('src', ULTIMATE_FALLBACK);
+            $img[0].onerror = null;
         }
         $img[0].onerror = oldError;
     };
@@ -331,20 +439,23 @@ function applyBgWithCache(type, url, bg_img, forceRefresh, silentMode, callback)
 
     if (!forceRefresh && bg_img["cache"] && isBgCacheValid(cache, bg_img)) {
         bgLog('applyBgWithCache() 缓存有效 → 使用缓存');
-        var cachedData = getCachedBgData();
-        if (cachedData) {
-            bgLog('applyBgWithCache() 有 base64 缓存，直接渲染');
-            if (silentMode) { bgLog('applyBgWithCache() silentMode → 跳过渲染'); doneCb(false); return false; }
-            return applyBgNew(cachedData, false, doneCb);
-        }
-        bgLog('applyBgWithCache() 无 base64 缓存，使用缓存 URL');
-        if (silentMode) { bgLog('applyBgWithCache() silentMode → 跳过渲染'); doneCb(false); return false; }
-        return applyBgNew(cache.url, false, doneCb);
+        getCachedBgData().then(function (cachedData) {
+            if (cachedData) {
+                bgLog('applyBgWithCache() 有 base64 缓存，直接渲染');
+                if (silentMode) { bgLog('applyBgWithCache() silentMode → 跳过渲染'); doneCb(false); return; }
+                applyBgNew(cachedData, false, doneCb, cache.url);
+            } else {
+                bgLog('applyBgWithCache() 无 base64 缓存，使用缓存 URL');
+                if (silentMode) { bgLog('applyBgWithCache() silentMode → 跳过渲染'); doneCb(false); return; }
+                applyBgNew(cache.url, false, doneCb, cache.url);
+            }
+        });
+        return true;
     }
 
     if (!bg_img["cache"] && !forceRefresh && !silentMode) {
         bgLog('applyBgWithCache() cache关闭且非强刷非静默 → 直接 URL 渲染');
-        return applyBgNew(url, false, doneCb);
+        return applyBgNew(url, false, doneCb, url);
     }
 
     bgLog('applyBgWithCache() 需要获取新数据，提前解析真实 URL...');
@@ -374,29 +485,30 @@ function applyBgWithCache(type, url, bg_img, forceRefresh, silentMode, callback)
                             reject(e);
                         };
                         reader.readAsDataURL(blob);
-                    });
+                      });
                 });
             })
             .then(function (result) {
                 bgLog('applyBgWithCache() 成功获取数据, dataUrl 长度:', result.dataUrl.length);
                 if (bg_img["cache"]) setBgCache(type, result.finalUrl, bg_img);
                 if (silentMode) { bgLog('applyBgWithCache() silentMode → 仅缓存，不渲染'); doneCb(false); return; }
-                applyBgNew(result.dataUrl, forceRefresh, doneCb);
+                applyBgNew(result.dataUrl, forceRefresh, doneCb, result.finalUrl);
             })
             .catch(function (err) {
-                bgLog('applyBgWithCache() fetch→blob 失败!', err.message || err, '| 存在 base64?', !!getCachedBgData());
+                bgLog('applyBgWithCache() fetch→blob 失败!', err.message || err);
                 console.warn('[wallpaper cache] fetch/blob 失败，回退到真实静态 URL 模式:', err);
                 if (bg_img["cache"]) setBgCache(type, realUrl, bg_img);
                 if (forceRefresh) clearCachedBgData(); // 强制刷新且请求失败时，清空过期缓存以免持续兜底
                 if (silentMode) { bgLog('applyBgWithCache() silentMode → 回退也跳过渲染'); doneCb(false); return; }
-                var base64Fallback = getCachedBgData();
-                if (base64Fallback && !forceRefresh) {
-                    bgLog('applyBgWithCache() 回退到 base64 缓存');
-                    applyBgNew(base64Fallback, false, doneCb);
-                } else {
-                    bgLog('applyBgWithCache() 回退到直接 URL 加载');
-                    applyBgNew(realUrl, forceRefresh, doneCb);
-                }
+                getCachedBgData().then(function (base64Fallback) {
+                    if (base64Fallback && !forceRefresh) {
+                        bgLog('applyBgWithCache() 回退到 base64 缓存');
+                        applyBgNew(base64Fallback, false, doneCb, realUrl);
+                    } else {
+                        bgLog('applyBgWithCache() 回退到直接 URL 加载');
+                        applyBgNew(realUrl, forceRefresh, doneCb, realUrl);
+                    }
+                });
             });
     });
     return true;
@@ -406,7 +518,7 @@ function applyBgWithCache(type, url, bg_img, forceRefresh, silentMode, callback)
 // 交叉渐变切换背景
 // ══════════════════════════════════════════════════════════════════
 
-function applyBgNew(url, forceRefresh, callback) {
+function applyBgNew(url, forceRefresh, callback, originalUrl) {
     bgLog('applyBgNew() 入口 url=', (url || '').substring(0, 80), '| forceRefresh=', forceRefresh);
     
     function doneCb(res) {
@@ -433,7 +545,7 @@ function applyBgNew(url, forceRefresh, callback) {
 
     bgLog('applyBgNew() 需要渐变切换! lastUrl=', (lastUrl || '').substring(0, 60), '→ newUrl=', url.substring(0, 60), '| 当前DOM结尾=', currentDomSrc.slice(-30));
     var oldLastUrl = lastUrl;
-    setLastBgUrl(url);
+    setLastBgUrl(originalUrl || url);
 
     var $bgNew = $('#bg-new');
     var newImg = new Image();
@@ -506,14 +618,14 @@ function applyBgNew(url, forceRefresh, callback) {
     newImg.onerror = function () {
         bgLog('applyBgNew() newImg.onerror! url=', displayUrl.substring(0, 80));
         console.warn('[wallpaper] 图片加载失败:', displayUrl);
-        var base64Fallback = getCachedBgData();
-        // Fallback chain: Base64 -> lastUrl -> FALLBACK_BG_URL -> Gray
-        var fb = base64Fallback || oldLastUrl || FALLBACK_BG_URL;
-        bgLog('applyBgNew() onerror fallback: base64=', !!base64Fallback, '| oldLastUrl=', (oldLastUrl || '').substring(0, 40));
-        
-        var nextFb = (fb !== FALLBACK_BG_URL) ? FALLBACK_BG_URL : ULTIMATE_FALLBACK;
-        setWithFallback($bg, fb, nextFb);
-        doneCb(false);
+        getCachedBgData().then(function (base64Fallback) {
+            var fb = base64Fallback || oldLastUrl || FALLBACK_BG_URL;
+            bgLog('applyBgNew() onerror fallback: base64=', !!base64Fallback, '| oldLastUrl=', (oldLastUrl || '').substring(0, 40));
+            
+            var nextFb = (fb !== FALLBACK_BG_URL) ? FALLBACK_BG_URL : ULTIMATE_FALLBACK;
+            setWithFallback($bg, fb, nextFb);
+            doneCb(false);
+        });
     };
     newImg.src = displayUrl;
     bgLog('applyBgNew() 开始加载 newImg.src=', displayUrl.substring(0, 80));
@@ -524,26 +636,28 @@ function applyBgNew(url, forceRefresh, callback) {
 function cacheCurrentBgAsync(url) {
     bgLog('cacheCurrentBgAsync() 入口 url=', (url || '').substring(0, 80));
     if (!url || url.indexOf('http') !== 0) { bgLog('cacheCurrentBgAsync() 跳过: 非 http(s) URL'); return; }
-    if (getCachedBgData()) { bgLog('cacheCurrentBgAsync() 跳过: 已有 base64 缓存'); return; }
-    fetch(url, { method: 'GET', redirect: 'follow', cache: 'no-store' })
-        .then(function (res) {
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            return res.blob();
-        })
-        .then(function (blob) {
-            bgLog('cacheCurrentBgAsync() blob:', blob.size, 'bytes');
-            var reader = new FileReader();
-            reader.onload = function () {
-                compressAndCacheDataUrl(reader.result, function (compressed) {
-                    bgLog('cacheCurrentBgAsync() 缓存完成, 长度:', (compressed || reader.result).length);
-                });
-            };
-            reader.onerror = function () { bgLog('cacheCurrentBgAsync() FileReader 失败'); };
-            reader.readAsDataURL(blob);
-        })
-        .catch(function (err) {
-            bgLog('cacheCurrentBgAsync() fetch 失败 (可能 CORS 受限):', err.message || err);
-        });
+    getCachedBgData().then(function (cachedData) {
+        if (cachedData) { bgLog('cacheCurrentBgAsync() 跳过: 已有 base64 缓存'); return; }
+        fetch(url, { method: 'GET', redirect: 'follow', cache: 'no-store' })
+            .then(function (res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.blob();
+            })
+            .then(function (blob) {
+                bgLog('cacheCurrentBgAsync() blob:', blob.size, 'bytes');
+                var reader = new FileReader();
+                reader.onload = function () {
+                    compressAndCacheDataUrl(reader.result, function (compressed) {
+                        bgLog('cacheCurrentBgAsync() 缓存完成, 长度:', (compressed || reader.result).length);
+                    });
+                };
+                reader.onerror = function () { bgLog('cacheCurrentBgAsync() FileReader 失败'); };
+                reader.readAsDataURL(blob);
+            })
+            .catch(function (err) {
+                bgLog('cacheCurrentBgAsync() fetch 失败 (可能 CORS 受限):', err.message || err);
+            });
+    });
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -655,165 +769,188 @@ function setBgImgInit() {
     bgLog('══════════ setBgImgInit() 开始 ══════════');
     bgLog('  bg_img.type=', bg_img['type'], '| refreshOnLoad=', bg_img['refreshOnLoad'], '| cache=', bg_img['cache'], '| cacheDuration=', bg_img['cacheDuration']);
 
-    // ── 阶段一：立即展示一张确定存在的图片 ────
-    var cachedData = getCachedBgData();
-    var lastUrl = getLastBgUrl();
-    var bgEl = document.getElementById('bg');
-    bgLog('  Phase1: cachedData=', cachedData ? ('存在, 长度=' + cachedData.length) : '(无)', '| lastUrl=', (lastUrl || '(无)').substring(0, 60), '| bgEl=', !!bgEl);
+    getCachedBgData().then(function (cachedData) {
+        var lastUrl = getLastBgUrl();
+        var bgEl = document.getElementById('bg');
+        bgLog('  Phase1: cachedData=', cachedData ? ('存在, 长度=' + cachedData.length) : '(无)', '| lastUrl=', (lastUrl || '(无)').substring(0, 60), '| bgEl=', !!bgEl);
 
-    var initUrl = cachedData || (lastUrl && typeof lastUrl === 'string' && lastUrl.indexOf('http') === 0 ? lastUrl : null) || FALLBACK_BG_URL;
-    bgLog('  Phase1: initUrl =', initUrl.substring(0, 80), '| 来源:', cachedData ? 'base64缓存' : (initUrl === lastUrl ? '上一次 URL缓存' : '本地兜底图'));
-
-    function doReveal() {
-        bgLog('  Phase1: doReveal() 被调用!');
-        if (typeof _revealFallbackTimer !== 'undefined') {
-            clearTimeout(_revealFallbackTimer);
-            bgLog('  Phase1: 已取消 fallback 定时器');
+        // Determine Phase 1 initUrl
+        // If we have base64 cachedData, load it.
+        // Otherwise, if we have a static lastUrl (not a random API redirector), load it instantly.
+        // Otherwise, fallback to the local default wallpaper.
+        var initUrl = cachedData;
+        if (!initUrl) {
+            if (lastUrl && typeof lastUrl === 'string' && !isRandomApiUrl(lastUrl)) {
+                bgLog('  Phase1: 使用上一次加载的静态URL:', lastUrl);
+                initUrl = lastUrl;
+            } else {
+                bgLog('  Phase1: 无可用静态缓存 -> 使用本地默认兜底图');
+                initUrl = FALLBACK_BG_URL;
+            }
         }
-        if (typeof revealPage === 'function') {
-            bgLog('  Phase1: 调用 revealPage()');
-            revealPage();
-        }
-    }
+        
+        bgLog('  Phase1: initUrl =', initUrl.substring(0, 80), '| 来源:', cachedData ? 'base64缓存' : (initUrl === FALLBACK_BG_URL ? '本地兜底图' : '上一次静态 URL'));
 
-    if (bgEl && initUrl) {
-        var fb1 = (initUrl === FALLBACK_BG_URL) ? null : FALLBACK_BG_URL;
-        bgEl.onerror = function () {
-            bgLog('  Phase1: bgEl.onerror! src=', (bgEl.src || '').substring(0, 80));
-            bgEl.onerror = null;
-            setWithFallback($('#bg'), fb1 || ULTIMATE_FALLBACK, ULTIMATE_FALLBACK);
+        function doReveal() {
+            bgLog('  Phase1: doReveal() 被调用!');
+            if (typeof _revealFallbackTimer !== 'undefined') {
+                clearTimeout(_revealFallbackTimer);
+                bgLog('  Phase1: 已取消 fallback 定时器');
+            }
+            if (typeof revealPage === 'function') {
+                bgLog('  Phase1: 调用 revealPage()');
+                revealPage();
+            }
+        }
+
+        if (bgEl && initUrl) {
+            var fb1 = (initUrl === FALLBACK_BG_URL) ? null : FALLBACK_BG_URL;
+            bgEl.onerror = function () {
+                bgLog('  Phase1: bgEl.onerror! src=', (bgEl.src || '').substring(0, 80));
+                bgEl.onerror = null;
+                setWithFallback($('#bg'), fb1 || ULTIMATE_FALLBACK, ULTIMATE_FALLBACK);
+            };
+            bgEl.src = initUrl;
+            bgLog('  Phase1: 设置 bgEl.src =', initUrl.substring(0, 80));
+            var revealed = false;
+            var revealOnce = function () {
+                if (!revealed) { revealed = true; doReveal(); }
+            };
+            var decodeTimeout = setTimeout(function () {
+                bgLog('  Phase1: decode 超时 (300ms) → 强制揭幕');
+                revealOnce();
+            }, 300);
+            var decodePromise = bgEl.decode ? bgEl.decode() : Promise.resolve();
+            decodePromise.then(function () {
+                bgLog('  Phase1: decode 成功 → 揭幕');
+                clearTimeout(decodeTimeout);
+                revealOnce();
+            }).catch(function () {
+                bgLog('  Phase1: decode 失败 → 揭幕');
+                clearTimeout(decodeTimeout);
+                revealOnce();
+            });
+        } else {
+            bgLog('  Phase1: bgEl 或 initUrl 无效 → 直接揭幕');
+            doReveal();
+        }
+
+        if (!lastUrl) {
+            bgLog('  Phase1: 首次访问 (无 lastUrl) → 保存 initUrl 为 lastUrl');
+            setLastBgUrl(initUrl);
+        }
+
+        // ── UI 状态恢复 ─────────────────────────────────
+        $("input[name='wallpaper-type'][value=" + bg_img["type"] + "]").prop("checked", true);
+        var descriptions = {
+            "1": "显示默认壁纸，刷新页面以生效",
+            "2": "显示必应每日一图，每天更新，刷新页面以生效 | API @ Bing",
+            "3": "显示随机风景照片，每次刷新更换，刷新页面以生效 | API @ Lorem Picsum",
+            "4": "显示随机二次元图片，每次刷新更换，刷新页面以生效 | API @ 樱花",
+            "5": "显示随机猫咪照片，治愈系壁纸，刷新页面以生效 | API @ 樱花",
+            "6": "使用自定义图片 URL，请在下方填入地址后保存"
         };
-        bgEl.src = initUrl;
-        bgLog('  Phase1: 设置 bgEl.src =', initUrl.substring(0, 80));
-        var revealed = false;
-        var revealOnce = function () {
-            if (!revealed) { revealed = true; doReveal(); }
-        };
-        var decodeTimeout = setTimeout(function () {
-            bgLog('  Phase1: decode 超时 (300ms) → 强制揭幕');
-            revealOnce();
-        }, 300);
-        var decodePromise = bgEl.decode ? bgEl.decode() : Promise.resolve();
-        decodePromise.then(function () {
-            bgLog('  Phase1: decode 成功 → 揭幕');
-            clearTimeout(decodeTimeout);
-            revealOnce();
-        }).catch(function () {
-            bgLog('  Phase1: decode 失败 → 揭幕');
-            clearTimeout(decodeTimeout);
-            revealOnce();
-        });
-    } else {
-        bgLog('  Phase1: bgEl 或 initUrl 无效 → 直接揭幕');
-        doReveal();
-    }
-
-    if (!lastUrl) {
-        bgLog('  Phase1: 首次访问 (无 lastUrl) → 保存 initUrl 为 lastUrl');
-        setLastBgUrl(initUrl);
-    }
-
-    // ── UI 状态恢复 ─────────────────────────────────
-    $("input[name='wallpaper-type'][value=" + bg_img["type"] + "]").click();
-    if (bg_img["type"] === "6") {
-        $("#wallpaper-url").val(bg_img["path"]);
-        if (getBgApiKey()) {
-            $("#wallpaper-apikey").attr("placeholder", "API 密钥已保存（输入新值以更新）");
+        $('#wallpaper_text').html(descriptions[bg_img["type"]] || "");
+        if (bg_img["type"] === "6") {
+            $("#wallpaper-url").val(bg_img["path"]);
+            if (getBgApiKey()) {
+                $("#wallpaper-apikey").attr("placeholder", "API 密钥已保存（输入新值以更新）");
+            }
+            $("#wallpaper_url").fadeIn(100);
+        } else {
+            $("#wallpaper_url").fadeOut(300);
         }
-        $("#wallpaper_url").fadeIn(100);
-    } else {
-        $("#wallpaper_url").fadeOut(300);
-    }
-    $("#wallpaper-refresh-enable").prop("checked", bg_img["refreshOnLoad"] === true);
-    var cacheEnabled = bg_img["cache"] === true;
-    $("#wallpaper-cache-enable").prop("checked", cacheEnabled);
-    if (cacheEnabled) {
-        $("#wallpaper-cache-hours").val(bg_img["cacheDuration"] || CACHE_DURATION_DEFAULT);
-        $("#wallpaper_cache_duration").show();
-        $("#wallpaper_cache_save_row").show();
-    }
-    var fitEnabled = bg_img["bg_fit"] === true;
-    $("#wallpaper-fit-enable").prop("checked", fitEnabled);
-    applyFitMode(fitEnabled);
+        $("#wallpaper-refresh-enable").prop("checked", bg_img["refreshOnLoad"] === true);
+        var cacheEnabled = bg_img["cache"] === true;
+        $("#wallpaper-cache-enable").prop("checked", cacheEnabled);
+        if (cacheEnabled) {
+            $("#wallpaper-cache-hours").val(bg_img["cacheDuration"] || CACHE_DURATION_DEFAULT);
+            $("#wallpaper_cache_duration").show();
+            $("#wallpaper_cache_save_row").show();
+        }
+        var fitEnabled = bg_img["bg_fit"] === true;
+        $("#wallpaper-fit-enable").prop("checked", fitEnabled);
+        applyFitMode(fitEnabled);
 
-    // ── 判断是否需要获取新壁纸 ──────────────────────
-    var lastType = getLastBgType();
-    var currentType = bg_img["type"];
-    var typeChanged = (lastType && lastType !== currentType);
-    var refreshOnLoad = !!bg_img["refreshOnLoad"];
-    var noLastImg = !lastUrl;
-    var needNewBg = typeChanged || refreshOnLoad || noLastImg;
-    bgLog('  Phase2: lastType=', lastType, '| currentType=', currentType, '| typeChanged=', typeChanged, '| refreshOnLoad=', refreshOnLoad, '| noLastImg=', noLastImg, '| needNewBg=', needNewBg);
+        // ── 判断是否需要获取新壁纸 ──────────────────────
+        var lastType = getLastBgType();
+        var currentType = bg_img["type"];
+        var typeChanged = (lastType && lastType !== currentType);
+        var refreshOnLoad = !!bg_img["refreshOnLoad"];
+        var noLastImg = !lastUrl;
+        var needNewBg = typeChanged || refreshOnLoad || noLastImg;
+        bgLog('  Phase2: lastType=', lastType, '| currentType=', currentType, '| typeChanged=', typeChanged, '| refreshOnLoad=', refreshOnLoad, '| noLastImg=', noLastImg, '| needNewBg=', needNewBg);
 
-    if (!needNewBg) {
-        bgLog('  Phase2: 无需更换壁纸 → 显示上次缓存的真实壁纸');
+        if (!needNewBg) {
+            bgLog('  Phase2: 无需更换壁纸 → 显示上次缓存的真实壁纸');
+            setLastBgType(currentType);
+            if (cachedData) {
+                bgLog('  Phase2: 交叉渐变到 base64 缓存');
+                applyBgNew(cachedData, false, null, lastUrl);
+            } else if (lastUrl && lastUrl.indexOf('http') === 0) {
+                bgLog('  Phase2: fetch API 并交叉渐变显示');
+                applyBgWithCache(currentType, lastUrl, bg_img, false, false);
+            } else if (lastUrl) {
+                bgLog('  Phase2: 交叉渐变到本地文件');
+                applyBgNew(lastUrl, false, null, lastUrl);
+            }
+            return;
+        }
+
         setLastBgType(currentType);
-        if (cachedData) {
-            bgLog('  Phase2: 交叉渐变到 base64 缓存');
-            applyBgNew(cachedData, false);
-        } else if (lastUrl && lastUrl.indexOf('http') === 0) {
-            bgLog('  Phase2: fetch API 并交叉渐变显示');
-            applyBgWithCache(currentType, lastUrl, bg_img, false, false);
-        } else if (lastUrl) {
-            bgLog('  Phase2: 交叉渐变到本地文件');
-            applyBgNew(lastUrl, false);
-        }
-        return;
-    }
-
-    setLastBgType(currentType);
-    bgLog('  Phase2: 需要更换壁纸! 原因:', typeChanged ? '来源变更' : '', refreshOnLoad ? '强刷' : '', noLastImg ? '首次访问' : '');
-    var deferredSwitch = function () {
-        bgLog('  Phase2: deferredSwitch 执行! type=', currentType);
-        switch (currentType) {
-            case "1":
-                var cache1 = getBgCache();
-                if (!refreshOnLoad && bg_img["cache"] && isBgCacheValid(cache1, bg_img)) {
-                    applyBgNew(cache1.url, false);
-                } else {
-                    var lastBg = getLastBgUrl();
-                    var rd = Math.floor(Math.random() * DEFAULT_BG_LIST.length);
-                    if (refreshOnLoad && DEFAULT_BG_LIST.length > 1) {
-                        var tries = 0;
-                        while (DEFAULT_BG_LIST[rd] === lastBg && tries < DEFAULT_BG_LIST.length) {
-                            rd = Math.floor(Math.random() * DEFAULT_BG_LIST.length);
-                            tries++;
+        bgLog('  Phase2: 需要更换壁纸! 原因:', typeChanged ? '来源变更' : '', refreshOnLoad ? '强刷' : '', noLastImg ? '首次访问' : '');
+        var deferredSwitch = function () {
+            bgLog('  Phase2: deferredSwitch 执行! type=', currentType);
+            switch (currentType) {
+                case "1":
+                    var cache1 = getBgCache();
+                    if (!refreshOnLoad && bg_img["cache"] && isBgCacheValid(cache1, bg_img)) {
+                        applyBgNew(cache1.url, false, null, cache1.url);
+                    } else {
+                        var lastBg = getLastBgUrl();
+                        var rd = Math.floor(Math.random() * DEFAULT_BG_LIST.length);
+                        if (refreshOnLoad && DEFAULT_BG_LIST.length > 1) {
+                            var tries = 0;
+                            while (DEFAULT_BG_LIST[rd] === lastBg && tries < DEFAULT_BG_LIST.length) {
+                                rd = Math.floor(Math.random() * DEFAULT_BG_LIST.length);
+                                tries++;
+                            }
                         }
+                        var picUrl = DEFAULT_BG_LIST[rd];
+                        if (bg_img["cache"] && !refreshOnLoad) setBgCache("1", picUrl, bg_img);
+                        applyBgNew(picUrl, refreshOnLoad, null, picUrl);
                     }
-                    var picUrl = DEFAULT_BG_LIST[rd];
-                    if (bg_img["cache"] && !refreshOnLoad) setBgCache("1", picUrl, bg_img);
-                    applyBgNew(picUrl, refreshOnLoad);
-                }
-                break;
-            case "2":
-            case "3":
-            case "4":
-            case "5":
-                var baseUrls = {
-                    "2": 'https://bing.biturl.top/?resolution=1920&format=image&index=0&mkt=zh-CN',
-                    "3": 'https://picsum.photos/1920/1080',
-                    "4": 'https://t.mwm.moe/fj',
-                    "5": 'https://t.mwm.moe/mp',
-                };
-                applyBgWithCache(currentType, baseUrls[currentType], bg_img, refreshOnLoad);
-                break;
-            case "6":
-                if (bg_img["path"]) {
-                    var finalUrl = buildBgUrl(bg_img["path"], getBgApiKey());
-                    applyBgWithCache("6", finalUrl, bg_img, refreshOnLoad);
-                }
-                break;
-        }
-    };
+                    break;
+                case "2":
+                case "3":
+                case "4":
+                case "5":
+                    var baseUrls = {
+                        "2": 'https://bing.biturl.top/?resolution=1920&format=image&index=0&mkt=zh-CN',
+                        "3": 'https://picsum.photos/1920/1080',
+                        "4": 'https://t.mwm.moe/fj',
+                        "5": 'https://t.mwm.moe/mp',
+                    };
+                    applyBgWithCache(currentType, baseUrls[currentType], bg_img, refreshOnLoad);
+                    break;
+                case "6":
+                    if (bg_img["path"]) {
+                        var finalUrl = buildBgUrl(bg_img["path"], getBgApiKey());
+                        applyBgWithCache("6", finalUrl, bg_img, refreshOnLoad);
+                    }
+                    break;
+            }
+        };
 
-    if (refreshOnLoad || noLastImg) {
-        bgLog('  Phase2: 延迟 300ms 后执行切换');
-        setTimeout(deferredSwitch, 300);
-    } else if (typeChanged) {
-        bgLog('  Phase2: 延迟 100ms 后执行切换 (来源变更)');
-        setTimeout(deferredSwitch, 100);
-    }
-    bgLog('══════════ setBgImgInit() 结束 ══════════');
+        if (refreshOnLoad || noLastImg) {
+            bgLog('  Phase2: 延迟 300ms 后执行切换');
+            setTimeout(deferredSwitch, 300);
+        } else if (typeChanged) {
+            bgLog('  Phase2: 延迟 100ms 后执行切换 (来源变更)');
+            setTimeout(deferredSwitch, 100);
+        }
+        bgLog('══════════ setBgImgInit() 结束 ══════════');
+    });
 }
 
 // ══════════════════════════════════════════════════════════════════

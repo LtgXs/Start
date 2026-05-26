@@ -30,9 +30,9 @@ window.addEventListener('load', function () {
     // 用户欢迎 Toast 全局配置
     iziToast.settings({
         timeout: 3000,
-        backgroundColor: '#ffffff40',
-        titleColor: '#efefef',
-        messageColor: '#efefef',
+        backgroundColor: 'rgba(0, 0, 0, 0.55)',
+        titleColor: '#ffffff',
+        messageColor: 'rgba(255, 255, 255, 0.85)',
         progressBar: false,
         close: false,
         closeOnEscape: true,

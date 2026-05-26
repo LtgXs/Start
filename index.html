@@ -24,6 +24,33 @@
             "https://www.imsyy.top/upgrade-your-browser/index.html?referrer=" + encodeURIComponent(window.location
             .href);
     </script>
+    <!-- Synchronous background cache check to prevent startup fallback flash -->
+    <script>
+        (function() {
+            try {
+                var bg_img_local = localStorage.getItem('bg_img');
+                if (bg_img_local) {
+                    var bg_img = JSON.parse(bg_img_local);
+                    if (bg_img && bg_img.type) {
+                        var lastUrl = localStorage.getItem('bg_last_url');
+                        if (lastUrl && typeof lastUrl === 'string') {
+                            var isValid = lastUrl.indexOf('http') === 0 || lastUrl.indexOf('./img/') === 0;
+                            if (isValid) {
+                                var u = lastUrl.toLowerCase();
+                                var isRandom = u.indexOf('t.mwm.moe') !== -1 ||
+                                               (u.indexOf('t.alcy.cc') !== -1 && u.indexOf('?json') === -1 && u.indexOf('.jpg') === -1 && u.indexOf('.png') === -1 && u.indexOf('.webp') === -1) ||
+                                               (u.indexOf('picsum.photos') !== -1 && u.indexOf('/id/') === -1 && u.indexOf('/seed/') === -1) ||
+                                               (u.indexOf('bing.biturl.top') !== -1 && u.indexOf('format=image') !== -1);
+                                if (!isRandom) {
+                                    document.write('<style>.bg-all { background-image: url("' + lastUrl + '") !important; }</style>');
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch(e) {}
+        })();
+    </script>
 </head>
 
 <body>
