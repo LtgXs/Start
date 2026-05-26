@@ -32,7 +32,7 @@ function focusWd() {
 function blurWd() {
     $("body").removeClass("onsearch");
     $(".wd").val("");
-    $("#keywords").hide();
+    $("#keywords").removeClass("show");
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -57,19 +57,23 @@ function _doKeywordReminder() {
             jsonp: 'cb',
             success: function (data) {
                 if (currentSeq !== _jsonpSeqId) return;
-                $("#keywords").css("width", $('.sou').width());
-                $("#keywords").empty().show();
-                $.each(data.s, function (i, val) {
-                    $('#keywords').append('<div class="keyword" data-id="' + (i + 1) + '"><i class=\'iconfont icon-sousuo\'></i>' + escapeHtml(val) + '</div>');
-                });
-                $("#keywords").attr("data-length", data.s.length);
+                if (data.s && data.s.length > 0) {
+                    $("#keywords").css("width", $('.sou').width());
+                    $("#keywords").empty().addClass("show");
+                    $.each(data.s, function (i, val) {
+                        $('#keywords').append('<div class="keyword" data-id="' + (i + 1) + '"><i class=\'iconfont icon-sousuo\'></i>' + escapeHtml(val) + '</div>');
+                    });
+                    $("#keywords").attr("data-length", data.s.length);
+                } else {
+                    $("#keywords").empty().removeClass("show");
+                }
             },
             error: function () {
-                $("#keywords").empty().hide();
+                $("#keywords").empty().removeClass("show");
             }
         });
     } else {
-        $("#keywords").empty().hide();
+        $("#keywords").empty().removeClass("show");
     }
 }
 
@@ -118,20 +122,20 @@ $(function () {
     // ── 全局点击：搜索引擎下拉 & 自动提示 ─────────────────────
     $(document).on('click', function (e) {
         // 选择搜索引擎点击
-        if (($(".search-engine").is(":hidden") && $(".se").is(e.target)) || ($(".search-engine").is(":hidden") && $("#icon-se").is(e.target))) {
+        if ((!$(".search-engine").hasClass("show") && $(".se").is(e.target)) || (!$(".search-engine").hasClass("show") && $("#icon-se").is(e.target))) {
             if ($(".se").is(e.target) || $("#icon-se").is(e.target)) {
                 $(".search-engine").css("width", $('.sou').width() - 30);
-                $(".search-engine").slideDown(160);
+                $(".search-engine").addClass("show");
             }
         } else {
             if (!$(".search-engine").is(e.target) && $(".search-engine").has(e.target).length === 0) {
-                $(".search-engine").slideUp(160);
+                $(".search-engine").removeClass("show");
             }
         }
 
         // 自动提示隐藏
         if (!$(".sou").is(e.target) && $(".sou").has(e.target).length === 0) {
-            $("#keywords").hide();
+            $("#keywords").removeClass("show");
         }
     });
 
@@ -143,19 +147,19 @@ $(function () {
         $(".search").attr("action", url);
         $(".wd").attr("name", name);
         $("#icon-se").attr("class", icon);
-        $(".search-engine").slideUp(160);
+        $(".search-engine").removeClass("show");
     });
 
     // ── 搜索框点击事件 ──────────────────────────────────────
     $(document).on('click', '.sou', function () {
         focusWd();
-        $(".search-engine").slideUp(160);
+        $(".search-engine").removeClass("show");
     });
 
     $(document).on('click', '.wd', function () {
         focusWd();
         keywordReminder();
-        $(".search-engine").slideUp(160);
+        $(".search-engine").removeClass("show");
     });
 
     // ── 关闭搜索区域 ────────────────────────────────────────
@@ -166,11 +170,11 @@ $(function () {
 
     // ── 点击搜索引擎图标时隐藏/显示自动提示 ─────────────────
     $(document).on('click', '.se', function () {
-        $('#keywords').toggle();
+        $('#keywords').toggleClass("show");
     });
 
     $(document).on('click', '.se-li', function () {
-        $('#keywords').show();
+        $('#keywords').addClass("show");
     });
 
     // ── 自动提示键盘事件（百度 API）─────────────────────────

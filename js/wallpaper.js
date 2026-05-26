@@ -564,19 +564,14 @@ function applyBgNew(url, forceRefresh, callback, originalUrl) {
             });
         }
 
-        var cs = bgEl ? window.getComputedStyle(bgEl) : null;
-        var inheritFilter = cs ? cs.filter : 'none';
-        var inheritTransform = cs ? cs.transform : 'none';
-        if (inheritFilter === 'none' || inheritFilter === '') inheritFilter = '';
+
 
         $bgNew.attr('src', displayUrl).css({
             display: 'block',
             opacity: 0,
-            filter: inheritFilter,
-            transform: inheritTransform,
             transition: 'none'
         });
-        bgLog('applyBgNew() #bg-new 就绪, filter:', inheritFilter, '| transform:', inheritTransform);
+        bgLog('applyBgNew() #bg-new 就绪');
 
         // 强行触发布局重绘
         $bgNew[0].offsetHeight;
@@ -602,7 +597,7 @@ function applyBgNew(url, forceRefresh, callback, originalUrl) {
                 
                 // 延迟隐藏 bg-new，确保 bg 的 src 已经被浏览器渲染出来，避免闪烁
                 setTimeout(function () {
-                    $bgNew.css({ transition: 'none', opacity: 0, display: 'none', filter: '', transform: '' });
+                    $bgNew.css({ transition: 'none', opacity: 0, display: 'none' });
                     if (isFitMode) {
                         $bgAmbientNew.css({ transition: 'none', opacity: 0, display: 'none' });
                     }

@@ -14,15 +14,15 @@ function openSet() {
     $("#menu").addClass('on');
     openBox();
     $("#icon-menu").attr("class", "iconfont icon-home");
-    $(".mark").css({ "display": "none" });
-    $(".set").css({ "display": "flex" });
+    $(".mark").removeClass("show");
+    $(".set").addClass("show");
 }
 
 function closeSet() {
     $("#menu").removeClass('on');
     closeBox();
     $("#icon-menu").attr("class", "iconfont icon-shezhi");
-    $(".set").css({ "display": "none" });
+    $(".set").removeClass("show");
     // 刷新主页数据
     seList();
     quickData();
@@ -34,24 +34,12 @@ function closeSet() {
 
 function openBox() {
     $("#content").addClass('box');
-    $(".mark").css({ "display": "flex" });
-    $(".tool-all").css({ "transform": 'translateY(-160%)' });
-    $('#bg').css({
-        "transform": 'scale(1.08)',
-        "filter": "blur(10px)",
-        "transition": "ease 0.3s"
-    });
+    $(".mark").addClass("show");
 }
 
 function closeBox() {
     $("#content").removeClass('box');
-    $(".mark").css({ "display": "none" });
-    $(".tool-all").css({ "transform": 'translateY(-120%)' });
-    $('#bg').css({
-        "transform": 'scale(1)',
-        "filter": "blur(0px)",
-        "transition": "ease 0.3s"
-    });
+    $(".mark").removeClass("show");
 }
 
 // ══════════════════════════════════════════════════════════════════

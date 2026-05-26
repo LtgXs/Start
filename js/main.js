@@ -11,10 +11,8 @@ function revealPage() {
     if (_revealed) { console.log('[bg:main] revealPage() 跳过 (已揭幕)'); return; }
     _revealed = true;
     console.log('[bg:main] revealPage() 揭幕! performance.now=', (performance.now ? performance.now().toFixed(0) : '?'));
-    $('#loading-box').attr('class', 'loaded');
-    $('#bg').css('cssText', 'transform: scale(1);filter: blur(0px);transition: ease 1.5s;');
-    $('#section').css('cssText', 'opacity: 1;transition: ease 1.5s;');
-    $('.cover').css('cssText', 'opacity: 1;transition: ease 1.5s;');
+    $('body').addClass('loaded');
+    $('#loading-box').addClass('loaded');
 }
 var _revealFallbackTimer = setTimeout(function () {
     console.log('[bg:main] ⚠ 5000ms 兜底超时触发!');
