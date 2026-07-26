@@ -1,215 +1,150 @@
 /* ============================================
- * Snavigation - Shared State Layer
- * 本地存储、默认数据、URL 校验与安全序列化
+ * Snavigation - Storage
+ * localStorage 存取（含旧版 Cookie 数据一次性迁移）
+ * 与搜索引擎 / 快捷方式 / 壁纸配置的读写接口
+ * 依赖：config.js, utils.js
  * ============================================ */
+'use strict';
 
-var APP_STORAGE_KEYS = {
-    searchList: 'se_list',
-    searchDefault: 'se_default',
-    quickList: 'quick_list',
-    wallpaper: 'bg_img',
-    wallpaperApiKey: 'bg_apikey',
-    wallpaperCache: 'bg_img_cache',
-    wallpaperLastUrl: 'bg_last_url',
-    wallpaperLastType: 'bg_last_type',
-    wallpaperCacheData: 'bg_img_data'
-};
+// ── 旧版 Cookie 兼容（替代 js.cookie.js，仅用于历史数据迁移）────────
+function readLegacyCookie(name) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = document.cookie.match(new RegExp('(?:^|; )' + escaped + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : undefined;
+}
+function eraseLegacyCookie(name) {
+    document.cookie = name + '=; Max-Age=-1; path=/';
+}
 
-function cloneValue(value) {
-    if (value === null || value === undefined || typeof value !== 'object') {
-        return value;
-    }
-    if (typeof structuredClone === 'function') {
-        try { return structuredClone(value); } catch (e) { }
-    }
+/** localStorage.setItem 的安全封装（隐私模式 / 配额满时 setItem 会抛错） */
+function lsSet(key, value) {
     try {
-        return JSON.parse(JSON.stringify(value));
+        localStorage.setItem(key, value);
+        return true;
     } catch (e) {
-        if (Array.isArray(value)) {
-            return value.slice();
-        }
-        var out = {};
-        for (var key in value) {
-            if (Object.prototype.hasOwnProperty.call(value, key)) {
-                out[key] = value[key];
-            }
-        }
-        return out;
-    }
-}
-
-function safeJsonParse(raw, fallback) {
-    if (raw === null || raw === undefined || raw === '') {
-        return fallback;
-    }
-    if (typeof raw !== 'string') {
-        return raw;
-    }
-    try {
-        return JSON.parse(raw);
-    } catch (e) {
-        return fallback;
-    }
-}
-
-function safeJsonStringify(value) {
-    if (typeof value === 'string') return value;
-    try {
-        return JSON.stringify(value);
-    } catch (e) {
-        console.warn('JSON 序列化失败:', e);
-        return null;
-    }
-}
-
-function isPlainObject(value) {
-    return Object.prototype.toString.call(value) === '[object Object]';
-}
-
-function isEmptyObject(value) {
-    return !value || !Object.keys(value).length;
-}
-
-function readStoredObject(key, fallback, options) {
-    var settings = options || {};
-    var raw = Storage.get(key);
-    var parsed = safeJsonParse(raw, null);
-    if (isPlainObject(parsed) && (settings.allowEmpty || !isEmptyObject(parsed))) {
-        return cloneValue(parsed);
-    }
-    var clonedFallback = cloneValue(fallback);
-    Storage.set(key, clonedFallback);
-    return clonedFallback;
-}
-
-function writeStoredObject(key, value) {
-    if (value === undefined) return false;
-    Storage.set(key, cloneValue(value));
-    return true;
-}
-
-// HTML 转义工具，防止 XSS
-function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str).replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
-
-// URL 验证工具
-function isValidUrl(str) {
-    if (!str) return false;
-    try {
-        var url = new URL(String(str).trim());
-        return url.protocol === 'https:' || url.protocol === 'http:';
-    } catch (e) {
+        console.warn('[storage] 写入失败（可能是配额已满或隐私模式）:', key, e);
         return false;
     }
 }
 
-// 存储层：localStorage 优先，自动迁移旧 Cookie 数据
-var Storage = {
-    get: function (key) {
-        var val = localStorage.getItem(key);
+// ── 存储层：localStorage 优先，命中旧 Cookie 时自动迁移并清除 ──────
+const Storage = {
+    get(key) {
+        const val = localStorage.getItem(key);
         if (val !== null) return val;
-        var cookieVal = Cookies.get(key);
+        const cookieVal = readLegacyCookie(key);
         if (cookieVal !== undefined) {
-            localStorage.setItem(key, cookieVal);
-            Cookies.remove(key);
+            lsSet(key, cookieVal);
+            eraseLegacyCookie(key);
             return cookieVal;
         }
         return null;
     },
-    set: function (key, value) {
-        var finalValue = value;
-        if (typeof value === 'object') {
-            finalValue = safeJsonStringify(value);
+    set(key, value) {
+        let finalValue = value;
+        if (typeof value === 'object' && value !== null) {
+            try { finalValue = JSON.stringify(value); } catch (e) {
+                console.warn('[storage] JSON 序列化失败:', e);
+                return false;
+            }
         }
         if (finalValue === null || finalValue === undefined) return false;
-        localStorage.setItem(key, finalValue);
-        if (Cookies.get(key) !== undefined) {
-            Cookies.remove(key);
-        }
+        if (!lsSet(key, String(finalValue))) return false;
+        if (readLegacyCookie(key) !== undefined) eraseLegacyCookie(key);
         return true;
     },
-    remove: function (key) {
+    remove(key) {
         localStorage.removeItem(key);
-        Cookies.remove(key);
+        eraseLegacyCookie(key);
     },
-    getAll: function () {
-        var result = {};
-        for (var i = 0; i < localStorage.length; i++) {
-            var key = localStorage.key(i);
+    getAll() {
+        const result = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
             result[key] = localStorage.getItem(key);
         }
         return result;
     }
 };
 
-// 默认搜索引擎
-var se_list_preinstall = {
-    '1': { id: 1, title: '百度', url: 'https://www.baidu.com/s', name: 'wd', icon: 'iconfont icon-baidu' },
-    '2': { id: 2, title: '必应', url: 'https://cn.bing.com/search', name: 'q', icon: 'iconfont icon-bing' },
-    '3': { id: 3, title: '谷歌', url: 'https://www.google.com/search', name: 'q', icon: 'iconfont icon-google' }
-};
+// ── 对象型配置读写：损坏 / 缺失时回落预设并回写 ────────────────────
+// allowEmpty：把空对象视为合法的用户状态。
+// 修复：快捷方式全部删光后，下一次读取会把 {} 当作"数据损坏"而重新
+// 灌入预设——刚提示"删除成功"，预设列表又整队复活。快捷方式允许为空；
+// 搜索引擎必须至少有一项（否则搜索无法工作），维持非空回落。
+function readStoredObject(key, fallback, allowEmpty) {
+    const parsed = safeJsonParse(Storage.get(key), null);
+    const isPlain = Object.prototype.toString.call(parsed) === '[object Object]';
+    if (isPlain && (allowEmpty || Object.keys(parsed).length)) return parsed;
+    const preset = cloneValue(fallback);
+    Storage.set(key, preset);
+    return preset;
+}
 
-// 默认快捷方式
-var quick_list_preinstall = {
-    '1': { title: '哔哩哔哩', url: 'https://www.bilibili.com/' },
-    '2': { title: 'Office', url: 'https://www.office.com/' },
-    '3': { title: 'Main Page', url: 'https://littlegaofx.github.io/Self/' },
-    '4': { title: 'Edge Surf', url: 'https://littlegaofx.github.io/Surf/' },
-    '5': { title: 'New Concept Game', url: 'https://littlegaofx.github.io/Game/' }
-};
+// ══════════════════════════════════════════════════════════════════
+// 业务数据接口
+// ══════════════════════════════════════════════════════════════════
 
-// 默认壁纸配置
-var bg_img_preinstall = {
-    type: '1',
-    path: '',
-    cache: true,
-    cacheDuration: 24,
-    bg_fit: false,
-    refreshOnLoad: false
-};
+// 搜索引擎
+const getSeList = () => readStoredObject(STORAGE_KEYS.searchList, SE_PRESET);
+const setSeList = (list) => Storage.set(STORAGE_KEYS.searchList, list);
+const getSeDefault = () => Storage.get(STORAGE_KEYS.searchDefault) || '1';
+const setSeDefault = (key) => Storage.set(STORAGE_KEYS.searchDefault, key);
 
-// 壁纸相关常量
-var BG_APIKEY_SESSION_KEY = 'bg_apikey';
-var BG_LAST_URL_KEY = 'bg_last_url';
-var BG_LAST_TYPE_KEY = 'bg_last_type';
-var BG_IMG_DATA_KEY = 'bg_img_data';
-var BG_IMG_DATA_MAX = 60000000;
-var CACHE_DURATION_DEFAULT = 24;
-var CACHE_DURATION_MAX = 720;
-var BG_FADE_DURATION_MS = 1500;
-var REVEAL_DURATION_MS = 1500;
-var DEFAULT_BG_LIST = [
-    './img/background1.webp', './img/background2.webp', './img/background3.webp',
-    './img/background4.webp', './img/background5.webp', './img/background6.webp',
-    './img/background7.webp', './img/background8.webp', './img/background9.webp',
-    './img/background10.webp'
-];
-var FALLBACK_BG_URL = './img/background1.webp';
-var ULTIMATE_FALLBACK = './img/background1.webp';
+// 快捷方式（允许为空：用户可以有意删光所有快捷方式）
+const getQuickList = () => readStoredObject(STORAGE_KEYS.quickList, QUICK_PRESET, true);
+const setQuickList = (list) => Storage.set(STORAGE_KEYS.quickList, list);
 
-/**
- * 下载文本为文件
- * @param {string} filename 文件名
- * @param {string} text 文件内容
- */
-function download(filename, text) {
-    var blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-    var url = URL.createObjectURL(blob);
-    var element = document.createElement('a');
-    element.href = url;
-    element.download = filename;
-    element.style.display = 'none';
-    document.body.appendChild(element);
-    try {
-        element.click();
-    } finally {
-        document.body.removeChild(element);
-        URL.revokeObjectURL(url);
+// 壁纸配置（缺省字段自动补齐；cache 强制开启）
+function getBgImg() {
+    const parsed = safeJsonParse(Storage.get(STORAGE_KEYS.wallpaper), null);
+    const merged = Object.assign({}, BG_PRESET, parsed || {}, { cache: true });
+    if (!parsed) Storage.set(STORAGE_KEYS.wallpaper, merged);
+    return merged;
+}
+const setBgImg = (bg) => (bg ? Storage.set(STORAGE_KEYS.wallpaper, bg) : false);
+
+// 壁纸 API 密钥
+const getBgApiKey = () => localStorage.getItem(STORAGE_KEYS.wallpaperApiKey) || '';
+const setBgApiKey = (key) => { if (key) lsSet(STORAGE_KEYS.wallpaperApiKey, key); };
+
+// 上次壁纸 URL / 类型（供下次秒开首屏）
+const getLastBgUrl = () => localStorage.getItem(STORAGE_KEYS.wallpaperLastUrl) || '';
+function setLastBgUrl(url) {
+    // base64 数据不落 localStorage（体积大，走 IndexedDB）
+    if (url && !url.startsWith('data:image/')) {
+        lsSet(STORAGE_KEYS.wallpaperLastUrl, url);
     }
 }
+const getLastBgType = () => localStorage.getItem(STORAGE_KEYS.wallpaperLastType) || '';
+const setLastBgType = (type) => { if (type) lsSet(STORAGE_KEYS.wallpaperLastType, type); };
+
+// 主题（'auto' 跟随系统 / 'light' / 'dark'）
+function getTheme() {
+    const t = localStorage.getItem(STORAGE_KEYS.theme);
+    return (t === 'light' || t === 'dark') ? t : 'auto';
+}
+const setTheme = (mode) => lsSet(STORAGE_KEYS.theme, mode);
+
+// ── 偏好设置（v1.7；缺省字段自动补齐，未知字段透传保留）────────────
+function getPrefs() {
+    const parsed = safeJsonParse(Storage.get(STORAGE_KEYS.prefs), null);
+    const isPlain = Object.prototype.toString.call(parsed) === '[object Object]';
+    return Object.assign({}, PREFS_PRESET, isPlain ? parsed : {});
+}
+const setPrefs = (p) => Storage.set(STORAGE_KEYS.prefs, p);
+
+// ── 搜索历史（v1.7；数组，最近使用在前，上限 SEARCH_HISTORY_MAX）──
+function getSearchHistory() {
+    const arr = safeJsonParse(Storage.get(STORAGE_KEYS.searchHistory), null);
+    return Array.isArray(arr) ? arr.filter((s) => typeof s === 'string' && s) : [];
+}
+const setSearchHistory = (arr) => Storage.set(STORAGE_KEYS.searchHistory, arr);
+function addSearchHistory(term) {
+    const t = String(term || '').trim();
+    if (!t) return;
+    const arr = getSearchHistory().filter((s) => s !== t);
+    arr.unshift(t);
+    setSearchHistory(arr.slice(0, SEARCH_HISTORY_MAX));
+}
+const clearSearchHistory = () => Storage.remove(STORAGE_KEYS.searchHistory);

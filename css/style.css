@@ -1,6 +1,7 @@
 @charset "utf-8";
 
 :root {
+    color-scheme: dark; /* 原生控件（滚动条 / 输入框等）随主题渲染 */
     --body-background-color: #121214;
     --main-text-color: #f3f4f6;
     --main-text-form-color: #1f2937;
@@ -36,6 +37,7 @@
 }
 
 :root.light-theme {
+    color-scheme: light;
     --body-background-color: #f4f6fa;
     --main-text-color: #1f2937;
     --main-text-form-color: #1f2937;
@@ -87,6 +89,13 @@ p {
     user-select: none;
 }
 
+/* 修复：全局 user-select:none 会让输入框里的文字无法选中（编辑长 URL 时尤其难受） */
+input,
+textarea {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
 section {
     display: block;
     position: fixed;
@@ -101,8 +110,40 @@ body.loaded section {
     opacity: 1;
 }
 
-.noclickn {
-    pointer-events: none;
+/* 自定义按钮的键盘焦点指示：这些 role=button 的 div 可 Tab 聚焦，
+   但没有原生 button 的默认焦点环，键盘用户会"找不到自己在哪" */
+#menu:focus-visible,
+#bg-refresh:focus-visible,
+#theme-toggle:focus-visible,
+#time_text:focus-visible,
+#weather-main:focus-visible,
+.se:focus-visible,
+.quick a:focus-visible,
+.quicks a:focus-visible,
+#hitokoto:focus-visible,
+.hitokoto-refresh:focus-visible,
+#countdown-pill:focus-visible,
+.kw-del:focus-visible,
+.kw-history-clear:focus-visible {
+    outline: 2px solid rgba(125, 211, 252, 0.9);
+    outline-offset: 2px;
+    border-radius: 8px;
+}
+
+:root.light-theme #menu:focus-visible,
+:root.light-theme #bg-refresh:focus-visible,
+:root.light-theme #theme-toggle:focus-visible,
+:root.light-theme #time_text:focus-visible,
+:root.light-theme #weather-main:focus-visible,
+:root.light-theme .se:focus-visible,
+:root.light-theme .quick a:focus-visible,
+:root.light-theme .quicks a:focus-visible,
+:root.light-theme #hitokoto:focus-visible,
+:root.light-theme .hitokoto-refresh:focus-visible,
+:root.light-theme #countdown-pill:focus-visible,
+:root.light-theme .kw-del:focus-visible,
+:root.light-theme .kw-history-clear:focus-visible {
+    outline-color: rgba(37, 99, 235, 0.8);
 }
 
 /*背景*/
@@ -114,9 +155,16 @@ body.loaded section {
     width: 100%;
     height: 100%;
     transition: .25s;
-    background-image: url('../img/background1.webp');
+    /* --boot-bg 由 head 内联脚本按上次壁纸同步注入，避免默认图闪现 */
+    background-image: var(--boot-bg, url('../img/background1.webp'));
     background-size: cover;
     background-position: center;
+}
+
+/* 背景视差（v1.7）：变量由 widgets.js 按鼠标位置驱动；
+   略放大避免平移时露边。transition .25s 顺带提供阻尼跟随手感 */
+body.parallax-on .bg-all {
+    transform: translate3d(var(--par-x, 0px), var(--par-y, 0px), 0) scale(1.045);
 }
 
 #bg,
@@ -149,10 +197,6 @@ body.loaded #bg-new {
     transform: scale(1);
     filter: blur(0px);
     transition: opacity 1.5s ease, transform 0.45s cubic-bezier(0.25, 1, 0.5, 1), filter 0.45s cubic-bezier(0.25, 1, 0.5, 1);
-}
-
-img.error {
-    display: none;
 }
 
 /* 比例自适应：模糊背景层（ambient mode） */
@@ -207,6 +251,11 @@ body.loaded .cover {
     opacity: 1;
 }
 
+/* 浅色主题下暗角减弱，避免整体发灰 */
+:root.light-theme body.loaded .cover {
+    opacity: 0.55;
+}
+
 /*总布局*/
 #content {
     width: 100%;
@@ -225,6 +274,8 @@ body.loaded .cover {
 }
 
 .sou {
+    position: relative; /* 下拉与联想框的定位上下文 */
+    z-index: 6;         /* 高于 .close_sou 遮罩 (z-index: 5) */
     max-width: 680px;
     width: calc(100% - 60px);
     animation: fade 0.5s;
@@ -238,6 +289,12 @@ body.loaded .cover {
 .box .all-search {
     opacity: 0;
     transition: 0.3s;
+}
+
+/* 修复：面板打开时搜索框只是透明并未失效，其 z-index(6) 高于遮罩(5)，
+   点到「看不见的搜索框」会进入错乱的搜索态 */
+.box .sou {
+    pointer-events: none;
 }
 
 /*
@@ -258,7 +315,8 @@ body.loaded .cover {
                 box-shadow 0.45s ease !important;
 }
 
-.onsearch.light-theme .all-search {
+/* light-theme 位于 :root（html），onsearch 位于 body，需用后代选择器（原并列写法永不匹配） */
+:root.light-theme .onsearch .all-search {
     border-color: rgba(0, 0, 0, 0.15);
     box-shadow: 0 15px 35px rgba(31, 38, 135, 0.12);
 }
@@ -344,9 +402,15 @@ body.loaded .cover {
     animation: glow-pulse 6s ease-in-out infinite;
 }
 
-#point {
+#point,
+#point2 {
     margin: 0px 4px;
     animation: fadenum 2s infinite;
+}
+
+/* 显示秒时字号略收，避免 HH:MM:SS 在小屏溢出 */
+.time.has-sec #time_text {
+    letter-spacing: -0.5px;
 }
 
 #time_text {
@@ -376,9 +440,39 @@ body.loaded .cover {
     letter-spacing: 1px;
 }
 
+/* 倒数日胶囊（设置 → 偏好 中配置；点击进入编辑） */
+.countdown-pill {
+    margin-top: 10px;
+    padding: 4px 14px;
+    border-radius: 20px;
+    background: var(--main-background-color);
+    border: var(--glass-border);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    font-size: 0.85rem;
+    cursor: pointer;
+    align-items: center;
+    opacity: 0.92;
+    text-shadow: var(--main-text-shadow);
+    transition: var(--transition-smooth);
+    animation: fade-slide-up 0.5s backwards;
+}
+
+.countdown-pill:hover {
+    border: var(--glass-border-hover);
+    background: var(--main-background-hover-color);
+    transform: translateY(-1px);
+    opacity: 1;
+}
+
+.countdown-pill b {
+    font-weight: 600;
+}
+
 /*天气*/
 .weather {
-    color: #efefef;
+    /* 修复：此前写死 #efefef，浅色主题下「°C ~」等直书文字泛白难读 */
+    color: var(--main-text-color);
     opacity: 0.8;
     font-size: 1.10rem;
     text-shadow: var(--main-text-shadow);
@@ -577,11 +671,109 @@ body:not(.onsearch) .all-search:hover {
     text-align: center;
 }
 
+/* 修复：搜索态下输入框底色变白而占位符仍用主题浅色文字，
+   深色主题里呈"白底白字"的幽灵残影 */
+.onsearch .all-search input::-webkit-input-placeholder {
+    color: rgba(31, 41, 55, 0.35);
+}
+
+.onsearch .all-search input::-moz-placeholder {
+    color: rgba(31, 41, 55, 0.35);
+}
+
+/* ── 一言卡片（v1.7）──────────────────────────────────────────── */
+.hitokoto {
+    margin-top: 28px;
+    max-width: min(600px, calc(100% - 80px));
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 30px;
+    background: var(--main-background-color);
+    border: var(--glass-border);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--main-search-shadow);
+    cursor: pointer;
+    z-index: 1;
+    animation: fade-slide-up 0.6s 0.15s backwards;
+    /* 显式列出过渡属性（不含 visibility）：恢复可见必须瞬时完成，
+       与通用 all 过渡搭配的 visibility 变化会挂在过渡起点上 */
+    transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.3s ease,
+                background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hitokoto:hover {
+    border: var(--glass-border-hover);
+    box-shadow: var(--main-search-hover-shadow);
+    transform: translateY(-1px);
+}
+
+.hitokoto-mark {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1.6rem;
+    line-height: 0.4;
+    align-self: flex-start;
+    margin-top: 9px;
+    opacity: 0.45;
+}
+
+.hitokoto-text {
+    font-size: 0.92rem;
+    opacity: 0.92;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow: var(--main-text-shadow);
+}
+
+.hitokoto-from {
+    font-size: 0.8rem;
+    opacity: 0.6;
+    white-space: nowrap;
+}
+
+.hitokoto-refresh {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.95rem;
+    opacity: 0.65;
+    transition: var(--transition-smooth);
+}
+
+.hitokoto-refresh:hover {
+    opacity: 1;
+    background: var(--main-button-hover-color);
+}
+
+/* 搜索态 / 面板态：淡出并移出焦点序（visibility 保留占位，布局不跳动） */
+.onsearch .hitokoto,
+.box .hitokoto {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+}
+
+/* 矮屏空间有限，直接隐藏 */
+@media (max-height: 640px) {
+    .hitokoto {
+        display: none !important;
+    }
+}
+
 /*切换搜索引擎*/
 .search-engine {
     position: absolute;
+    left: 5px;
+    right: 5px;
     margin-top: 12px;
-    margin-left: 5px;
     padding: 12px;
     color: var(--main-text-color);
     background-color: var(--main-background-color);
@@ -594,6 +786,7 @@ body:not(.onsearch) .all-search:hover {
     display: block;
     opacity: 0;
     pointer-events: none;
+    /* 焦点排除由 JS 侧 inert 处理（见 .mark 处说明） */
     transform: translateY(10px) scale(0.96);
     transition: opacity 0.25s cubic-bezier(0.25, 1, 0.5, 1), transform 0.25s cubic-bezier(0.25, 1, 0.5, 1);
 }
@@ -609,7 +802,7 @@ body:not(.onsearch) .all-search:hover {
     justify-content: flex-start;
     width: 100%;
     flex-wrap: wrap;
-    height: 152px;
+    max-height: 152px; /* 高度自适应：引擎少时不再留空白，多时滚动 */
     overflow-y: auto;
     overflow-x: hidden;
     gap: 8px 0;
@@ -634,6 +827,25 @@ body:not(.onsearch) .all-search:hover {
     transform: translateY(-2px);
 }
 
+.se-li:focus-visible {
+    outline: 2px solid rgba(125, 211, 252, 0.9);
+    outline-offset: 2px;
+}
+
+:root.light-theme .se-li:focus-visible {
+    outline-color: rgba(37, 99, 235, 0.8);
+}
+
+/* 当前使用中的引擎 */
+.se-li.active {
+    background-color: var(--main-background-active-color);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+:root.light-theme .se-li.active {
+    border-color: rgba(31, 41, 55, 0.25);
+}
+
 .se-li-text {
     display: flex;
     width: 100%;
@@ -654,6 +866,9 @@ body:not(.onsearch) .all-search:hover {
     position: absolute;
     width: 100%;
     top: 105%;
+    max-height: min(45vh, 340px);
+    overflow-y: auto;
+    box-sizing: border-box;
     font-size: 0.95rem;
     color: var(--main-text-color);
     background-color: var(--main-background-color);
@@ -675,6 +890,13 @@ body:not(.onsearch) .all-search:hover {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0) scale(1);
+}
+
+/* 修复：搜索态下搜索框上移了 140%，引擎下拉此前已做 -38% 补偿，
+   联想框却被遗漏，悬在原位、与上移后的搜索框之间断开约 60px。
+   联想框仅在搜索态出现，直接改用紧贴上移后搜索框的定位 */
+.onsearch #keywords {
+    top: -10px;
 }
 
 .keyword {
@@ -699,6 +921,60 @@ body:not(.onsearch) .all-search:hover {
     background-color: var(--main-background-hover-color);
 }
 
+/* ── 搜索历史（v1.7，与联想框共用容器）───────────────────────── */
+.kw-history-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 16px 8px;
+    font-size: 0.82rem;
+    opacity: 0.65;
+}
+
+.kw-history-clear {
+    cursor: pointer;
+    padding: 2px 10px;
+    border-radius: 8px;
+    transition: var(--transition-smooth);
+}
+
+.kw-history-clear:hover,
+.kw-history-clear:focus-visible {
+    background: var(--main-background-hover-color);
+}
+
+.keyword .kw-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.keyword .kw-del {
+    margin-left: auto;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.78rem;
+    opacity: 0;
+    transition: var(--transition-smooth);
+}
+
+.keyword:hover .kw-del,
+.keyword.choose .kw-del,
+.keyword .kw-del:focus-visible {
+    opacity: 0.7;
+}
+
+.keyword .kw-del:hover {
+    opacity: 1;
+    background: var(--main-button-hover-color);
+}
+
 /*书签及设置*/
 .mark,
 .set {
@@ -721,6 +997,11 @@ body:not(.onsearch) .all-search:hover {
     overflow: hidden;
     
     /* Transitions */
+    /* 修复：面板收起后仅透明并未离场，内部几十个链接 / 按钮 / 输入框
+       仍占据 Tab 焦点序。焦点与无障碍排除由 JS 侧 inert 属性处理
+       （CSS visibility 方案会与通用 transition:all 相互作用，
+       后代继承的 visibility 变化被挂在过渡起点上，导致刚打开的
+       面板内容瞬时不可聚焦） */
     opacity: 0;
     pointer-events: none;
     transform: translateY(30px) scale(0.95);
@@ -860,6 +1141,13 @@ body:not(.onsearch) .all-search:hover {
     background: var(--main-background-active-color);
 }
 
+/* 面板打开时书签卡片阶梯式入场（--i 由渲染时注入；切换 Tab 同样生效） */
+.mark.show .quick,
+.mark.show .quicks {
+    animation: fade-slide-up 0.4s cubic-bezier(0.25, 1, 0.5, 1) backwards;
+    animation-delay: min(calc(var(--i, 0) * 22ms), 380ms);
+}
+
 .quick a,
 .quicks a {
     width: 100%;
@@ -939,6 +1227,36 @@ body:not(.onsearch) .all-search:hover {
 }
 
 /*设置区域统一样式*/
+#theme-toggle {
+    width: 44px;
+    height: 44px;
+    position: absolute;
+    right: 108px;
+    top: 8px;
+    z-index: 2000000;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: 0.3s;
+    animation: fade 1s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#theme-toggle .theme-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+    transition: 0.3s;
+}
+
+#theme-toggle:hover {
+    background: var(--main-background-color);
+}
+
+#theme-toggle:active {
+    transform: scale(0.90);
+}
+
 #bg-refresh {
     width: 44px;
     height: 44px;
@@ -1048,7 +1366,8 @@ body:not(.onsearch) .all-search:hover {
 .quick_add_cancel,
 .quick_add_save,
 .wallpaper_save,
-.wallpaper_cache_save,
+.countdown_save,
+.countdown_clear,
 .but-ordinary {
     width: 25%;
     display: flex;
@@ -1074,7 +1393,8 @@ body:not(.onsearch) .all-search:hover {
 .quick_add_cancel:hover,
 .quick_add_save:hover,
 .wallpaper_save:hover,
-.wallpaper_cache_save:hover,
+.countdown_save:hover,
+.countdown_clear:hover,
 .but-ordinary:hover {
     cursor: pointer;
     background: var(--main-button-hover-color);
@@ -1092,7 +1412,8 @@ body:not(.onsearch) .all-search:hover {
 .quick_add_cancel:active,
 .quick_add_save:active,
 .wallpaper_save:active,
-.wallpaper_cache_save:active,
+.countdown_save:active,
+.countdown_clear:active,
 .but-ordinary:active {
     transform: scale(0.95) translateY(0);
     background: var(--main-button-active-color);
@@ -1322,8 +1643,81 @@ input[type="number"] {
     margin-top: 6px;
 }
 
+/* ── 偏好设置页（v1.7）───────────────────────────────────────── */
+.pref-tab-content {
+    height: auto !important;
+    min-height: unset !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-bottom: 10px;
+}
+
+.pref-group {
+    margin-bottom: 16px;
+}
+
+.pref-group-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    opacity: 0.7;
+    margin: 4px 0 8px;
+}
+
+.but-small {
+    width: auto;
+    height: 34px;
+    padding: 0 18px;
+    margin: 0;
+    font-size: 0.88rem;
+}
+
+#countdown-title-input,
+#countdown-date-input {
+    font-size: 1rem;
+    outline: none;
+    height: 38px;
+    width: 100%;
+    max-width: 380px;
+    border-radius: 8px;
+    padding: 0 10px;
+    border: none;
+    background: var(--main-input-color);
+    box-sizing: border-box;
+}
+
+#countdown-title-input::-webkit-input-placeholder {
+    color: var(--main-input-text-placeholder-color);
+}
+
+#countdown-title-input:hover,
+#countdown-date-input:hover {
+    box-shadow: var(--main-search-hover-shadow);
+}
+
 .form-radio {
+    position: relative;
     margin: 0px 10px 12px 0px;
+}
+
+/* 修复：单选此前用 display:none 隐藏，被移出无障碍树与 Tab 序，
+   键盘用户完全无法切换壁纸类型。改为视觉隐藏但保持可聚焦，
+   Tab 聚焦到组后可用方向键选择（原生单选组行为） */
+input[type="radio"].set-wallpaper {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    clip-path: inset(50%);
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+input[type="radio"].set-wallpaper:focus-visible+label {
+    outline: 2px solid rgba(125, 211, 252, 0.9);
+    outline-offset: 2px;
 }
 
 input[type="radio"]+label {
@@ -1403,39 +1797,99 @@ input[type="radio"]:checked+label {
     text-shadow: var(--main-text-shadow);
 }
 
-/*弹窗样式*/
-.iziToast {
-    backdrop-filter: blur(10px) !important;
+/*弹窗（自研 Toast，替代 iziToast）*/
+.toast-container {
+    position: fixed;
+    top: 16px;
+    left: 0;
+    right: 0;
+    z-index: 1000000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
 }
 
-.iziToast:after {
-    box-shadow: none !important;
-}
-
-.iziToast>.iziToast-body {
+.toast {
     display: flex;
     align-items: center;
+    gap: 10px;
+    max-width: min(86vw, 480px);
+    padding: 10px 22px;
+    border-radius: 30px;
+    color: rgba(255, 255, 255, 0.85);
+    background-color: rgba(0, 0, 0, 0.55);
+    border: var(--glass-border);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--panel-shadow);
+    font-size: 0.95rem;
+    pointer-events: auto;
+    opacity: 0;
+    transform: translateY(-16px);
+    transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-.iziToast>.iziToast-body .iziToast-message {
-    margin: 0 !important;
+.toast.toast-enter {
+    opacity: 1;
+    transform: translateY(0);
 }
 
-.iziToast>.iziToast-body .iziToast-texts {
-    margin: 0 !important;
+.toast.toast-leave {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.96);
 }
 
-.iziToast>.iziToast-body .iziToast-buttons>a,
-.iziToast>.iziToast-body .iziToast-buttons>button,
-.iziToast>.iziToast-body .iziToast-buttons>input:not([type=checkbox]):not([type=radio]) {
-    margin: 2px 6px !important;
-    color: #efefef !important;
+.toast .toast-title {
+    color: #ffffff;
+    font-weight: 600;
+    white-space: nowrap;
 }
 
-.iziToast>.iziToast-body .iziToast-buttons>a:focus,
-.iziToast>.iziToast-body .iziToast-buttons>button:focus,
-.iziToast>.iziToast-body .iziToast-buttons>input:not([type=checkbox]):not([type=radio]):focus {
-    box-shadow: none !important;
+/* 浅色主题下的 Toast（深色胶囊在浅色壁纸上过于突兀） */
+:root.light-theme .toast {
+    color: #1f2937;
+    background-color: rgba(255, 255, 255, 0.78);
+}
+
+:root.light-theme .toast .toast-title {
+    color: #111827;
+}
+
+:root.light-theme .toast .toast-buttons button {
+    color: #1f2937;
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+:root.light-theme .toast .toast-buttons button:hover {
+    background-color: rgba(0, 0, 0, 0.12);
+}
+
+.toast .toast-buttons {
+    display: flex;
+    gap: 6px;
+    margin-left: 4px;
+}
+
+.toast .toast-buttons button {
+    padding: 4px 14px;
+    border: none;
+    border-radius: 16px;
+    color: #efefef;
+    background-color: var(--main-button-color);
+    font-size: 0.85rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.toast .toast-buttons button:hover {
+    background-color: var(--main-button-hover-color);
+}
+
+.toast .toast-buttons button:active {
+    background-color: var(--main-button-active-color);
 }
 
 /*滚动条*/
@@ -1460,19 +1914,22 @@ input[type="radio"]:checked+label {
 }
 
 /*文字选中*/
+/* 修复：原为半透明黑底 + 黑字，深色背景上选中的文字近乎不可见。
+   改为主题感知的天蓝高亮，不改写文字颜色（保持各处原有对比度） */
 ::selection {
-    background: #00000040;
-    color: #000000b3;
+    background: rgba(125, 211, 252, 0.4);
 }
 
 ::-moz-selection {
-    background: #00000040;
-    color: #000000b3;
+    background: rgba(125, 211, 252, 0.4);
 }
 
-.from_items input::selection {
-    background: #ffffff60;
-    color: #ffffffb3;
+:root.light-theme ::selection {
+    background: rgba(59, 130, 246, 0.25);
+}
+
+:root.light-theme ::-moz-selection {
+    background: rgba(59, 130, 246, 0.25);
 }
 
 /*noscript提示*/
@@ -1594,7 +2051,8 @@ input[type="radio"]:checked+label {
 }
 #weather-detail.show {
     opacity: 0.95;
-    max-height: 120px;
+    /* 修复：此前 120px，窄屏下四个指标折成多行会被裁掉下半截 */
+    max-height: 240px;
     margin-top: 8px;
     padding-top: 10px;
     padding-bottom: 10px;
@@ -1612,3 +2070,37 @@ input[type="radio"]:checked+label {
     transform: translateY(-110%);
 }
 
+
+/* 快捷方式"添加"按钮（原为 JS 内联样式） */
+.quick-add-tile {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   无障碍与自适应补充（v1.4）
+   ══════════════════════════════════════════════════════════════════ */
+
+/* 尊重系统「减少动态效果」偏好 */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* 矮屏（笔记本外接小屏 / 横屏手机）：面板整体上移并限高，避免溢出到视口外 */
+@media (max-height: 760px) {
+    .mark,
+    .set {
+        margin-top: 120px;
+        height: min(420px, calc(100vh - 150px));
+    }
+}

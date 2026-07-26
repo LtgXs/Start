@@ -3,58 +3,60 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Snavigation</title>
     <meta name="description" content="Snavigation - 简洁的浏览器导航起始页">
+    <meta name="theme-color" content="#121214" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#f4f6fa" media="(prefers-color-scheme: light)">
     <link rel="icon" href="favicon.ico">
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
-    <!-- 引入样式 -->
-    <link rel="stylesheet" type="text/css" href="./css/style.css">
-    <link rel="stylesheet" type="text/css" href="./css/font.css">
-    <link rel="stylesheet" type="text/css" href="./css/loading.css">
-    <link rel="stylesheet" type="text/css" href="./css/mobile.css">
-    <link rel="stylesheet" type="text/css" href="./css/animation.css">
-    <!-- Izitoast CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/izitoast/1.4.0/css/iziToast.min.css">
-    <!-- IE Out -->
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" type="image/png" sizes="32x32" href="./img/icon/favicon_32.png">
+    <link rel="icon" type="image/png" sizes="64x64" href="./img/icon/favicon_64.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="./img/icon/favicon_180.png">
+    <!-- 字体预加载（README 所述优化此前实际缺失；同源字体 preload 也必须带 crossorigin） -->
+    <link rel="preload" href="./font/MiSans-Regular.subset.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="./font/iconfont.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- 样式（font.css 前置以尽早发起字体请求；配合 font-display: swap 不阻塞渲染） -->
+    <link rel="stylesheet" href="./css/font.css">
+    <link rel="stylesheet" href="./css/style.css">
+    <link rel="stylesheet" href="./css/loading.css">
+    <link rel="stylesheet" href="./css/mobile.css">
+    <link rel="stylesheet" href="./css/animation.css">
+    <!-- 首屏主题预应用：在渲染前同步决定深浅色，避免主题闪变（键名与 config.js 的 STORAGE_KEYS.theme 保持一致） -->
     <script>
-        if ( /*@cc_on!@*/ false || (!!window.MSInputMethodContext && !!document.documentMode)) window.location.href =
-            "https://www.imsyy.top/upgrade-your-browser/index.html?referrer=" + encodeURIComponent(window.location
-            .href);
-    </script>
-    <!-- Synchronous background cache check to prevent startup fallback flash -->
-    <script>
-        (function() {
+        (function () {
             try {
-                var bg_img_local = localStorage.getItem('bg_img');
-                if (bg_img_local) {
-                    var bg_img = JSON.parse(bg_img_local);
-                    if (bg_img && bg_img.type) {
-                        var lastUrl = localStorage.getItem('bg_last_url');
-                        if (lastUrl && typeof lastUrl === 'string') {
-                            var isValid = lastUrl.indexOf('http') === 0 || lastUrl.indexOf('./img/') === 0;
-                            if (isValid) {
-                                var u = lastUrl.toLowerCase();
-                                var isRandom = u.indexOf('t.mwm.moe') !== -1 ||
-                                               (u.indexOf('t.alcy.cc') !== -1 && u.indexOf('?json') === -1 && u.indexOf('.jpg') === -1 && u.indexOf('.png') === -1 && u.indexOf('.webp') === -1) ||
-                                               (u.indexOf('picsum.photos') !== -1 && u.indexOf('/id/') === -1 && u.indexOf('/seed/') === -1) ||
-                                               (u.indexOf('bing.biturl.top') !== -1 && u.indexOf('format=image') !== -1);
-                                if (!isRandom) {
-                                    document.write('<style>.bg-all { background-image: url("' + lastUrl + '") !important; }</style>');
-                                }
-                            }
-                        }
-                    }
+                var th = localStorage.getItem('theme'); // 'light' | 'dark' | 其他视为 auto
+                var light = th === 'light' ||
+                    (th !== 'dark' && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches);
+                if (light) document.documentElement.classList.add('light-theme');
+            } catch (e) { /* 忽略，走深色默认 */ }
+        })();
+    </script>
+    <!-- 首屏背景恢复：同步读取上次壁纸，避免默认图闪现（不再使用 document.write） -->
+    <script>
+        (function () {
+            try {
+                var cfg = JSON.parse(localStorage.getItem('bg_img') || 'null');
+                var lastUrl = localStorage.getItem('bg_last_url');
+                if (!cfg || !cfg.type || !lastUrl) return;
+                if (lastUrl.indexOf('http') !== 0 && lastUrl.indexOf('./img/') !== 0) return;
+                if (/["'\\)\s]/.test(lastUrl)) return; // 含引号/括号/空白的 URL 可能破坏 CSS，直接放弃恢复
+                var u = lastUrl.toLowerCase();
+                var isRandom = u.indexOf('t.mwm.moe') !== -1 ||
+                    (u.indexOf('t.alcy.cc') !== -1 && u.indexOf('?json') === -1 && !/\.(jpg|png|webp)/.test(u)) ||
+                    (u.indexOf('picsum.photos') !== -1 && u.indexOf('/id/') === -1 && u.indexOf('/seed/') === -1) ||
+                    (u.indexOf('bing.biturl.top') !== -1 && u.indexOf('format=image') !== -1);
+                if (!isRandom) {
+                    document.documentElement.style.setProperty('--boot-bg', 'url("' + lastUrl + '")');
                 }
-            } catch(e) {}
+            } catch (e) { /* 忽略，走默认背景 */ }
         })();
     </script>
 </head>
 
 <body>
-    <!--加载动画-->
+    <!-- 加载动画 -->
     <div id="loading-box">
         <div class="loading-left-bg"></div>
         <div class="loading-right-bg"></div>
@@ -70,14 +72,16 @@
             </div>
         </div>
     </div>
-    <!-- 背景图片 -->
+
+    <!-- 背景 -->
     <div class="bg-all">
-        <img id="bg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onerror="this.classList.add('error');" alt="背景图片">
-        <img id="bg-new" src="" style="display:none;" alt="" aria-hidden="true">
+        <img id="bg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="背景图片">
+        <img id="bg-new" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" style="display:none;" alt="" aria-hidden="true">
         <div id="bg-ambient" style="display:none;"></div>
         <div id="bg-ambient-new" style="display:none;"></div>
         <div class="cover"></div>
     </div>
+
     <!-- 主体内容 -->
     <section id="section" class="section" aria-label="主内容区域">
         <div id="content">
@@ -85,13 +89,13 @@
                 <!-- 时间天气 -->
                 <div class="tool-all">
                     <div class="time">
-                        <span id="time_text">00<span id="point">:</span>00</span>
+                        <span id="time_text"><span id="t-hour">00</span><span id="point">:</span><span id="t-min">00</span><span id="sec-wrap" style="display:none;"><span id="point2">:</span><span id="t-sec">00</span></span></span>
                         <span id="day">0&nbsp;月&nbsp;00&nbsp;日&nbsp;周一</span>
+                        <span id="countdown-pill" class="countdown-pill" style="display:none;" role="button" tabindex="0" title="点击编辑倒数日"></span>
                     </div>
-                    <div class="weather" id="weather-main" role="button" aria-expanded="false" title="点击查看详细天气">
+                    <div class="weather" id="weather-main" role="button" tabindex="0" aria-expanded="false" title="点击查看详细天气">
                         <span class="weather-icon" id="weather_icon" aria-hidden="true">🌤️</span>
-                        <span id="wea_text">N/A</span>&nbsp;<span id="tem2">N/A</span>°C&nbsp;~&nbsp;<span
-                            id="tem1">N/A</span>°C
+                        <span id="wea_text">N/A</span>&nbsp;<span id="tem2">N/A</span>°C&nbsp;~&nbsp;<span id="tem1">N/A</span>°C
                         <span id="wea_city" class="wea-city"></span>
                     </div>
                     <div class="weather-detail" id="weather-detail" style="display: none;">
@@ -101,15 +105,17 @@
                         <span class="wea-detail-item">☀️ UV <span id="wea_uv">--</span></span>
                     </div>
                 </div>
+
                 <!-- 搜索框 -->
                 <div class="close_sou"></div>
                 <div class="sou">
-                    <form class="search" action="https://www.baidu.com/s" target="_blank" rel="noopener noreferrer">
+                    <form class="search" role="search" action="https://www.baidu.com/s" target="_blank" rel="noopener noreferrer">
                         <div class="all-search">
                             <div class="se" title="点击切换搜索引擎">
                                 <i id="icon-se" class="iconfont icon-baidu"></i>
                             </div>
-                            <input class="wd" type="text" name="wd" placeholder="想要搜点什么" autocomplete="off" aria-label="搜索">
+                            <input class="wd" type="text" name="wd" placeholder="想要搜点什么" autocomplete="off"
+                                spellcheck="false" enterkeyhint="search" aria-label="搜索">
                             <div class="sou-button">
                                 <div class="s" id="s-button">
                                     <i id="icon-sou" class="iconfont icon-sousuo"></i>
@@ -120,164 +126,42 @@
                     </form>
                     <div id="keywords"></div>
                     <div class="search-engine">
-                        <div class="search-engine-list">
-                            <!-- 此静态列表会被 seList() 动态覆盖 -->
-                        </div>
+                        <div class="search-engine-list"><!-- seList() 渲染 --></div>
                     </div>
                 </div>
-                <!-- 书签页 -->
+
+                <!-- 一言卡片（设置 → 偏好 可关闭；点击复制，右侧按钮换一条） -->
+                <div id="hitokoto" class="hitokoto" style="display:none;" role="button" tabindex="0" aria-label="一言，点击复制" title="点击复制">
+                    <span class="hitokoto-mark" aria-hidden="true">&ldquo;</span>
+                    <span id="hitokoto-text" class="hitokoto-text"></span>
+                    <span id="hitokoto-from" class="hitokoto-from"></span>
+                    <span id="hitokoto-refresh" class="hitokoto-refresh" role="button" tabindex="0" aria-label="换一条" title="换一条">↻</span>
+                </div>
+
+                <!-- 书签页（Tab 与内容均由 bookmarks.js 依据 config.js 渲染） -->
                 <div class="mark">
-                    <div class="tab">
-                        <div class="tab-item active">常用</div>
-                        <div class="tab-item">开发</div>
-                        <div class="tab-item">学习</div>
-                    </div>
-                    <div class="content products">
-                        <!-- 常用 -->
-                        <div class="mainCont selected">
-                            <div class="quick-all">
-                                <div class="quick">
-                                    <a href="https://github.com/" target="_blank" rel="noopener noreferrer">
-                                        GitHub
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 开发 -->
-                        <div class="mainCont">
-                            <div class="quick-alls">
-                                <div class="quicks">
-                                    <a href="https://devdocs.io/" target="_blank" rel="noopener noreferrer">
-                                        DevDocs
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://caniuse.com/" target="_blank" rel="noopener noreferrer">
-                                        Can I Use
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://codepen.io/" target="_blank" rel="noopener noreferrer">
-                                        CodePen
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://tool.chinaz.com/" target="_blank" rel="noopener noreferrer">
-                                        站长之家
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://next.itellyou.cn/" target="_blank" rel="noopener noreferrer">
-                                        MSDN
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://regex101.com/" target="_blank" rel="noopener noreferrer">
-                                        Regex101
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://www.json.cn/" target="_blank" rel="noopener noreferrer">
-                                        JSON 格式化
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://npm.devtool.tech/" target="_blank" rel="noopener noreferrer">
-                                        NPM 查询
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://www.tablesgenerator.com/" target="_blank" rel="noopener noreferrer">
-                                        表格生成
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://squoosh.app/" target="_blank" rel="noopener noreferrer">
-                                        Squoosh 压图
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://tinypng.com/" target="_blank" rel="noopener noreferrer">
-                                        TinyPNG
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://excalidraw.com/" target="_blank" rel="noopener noreferrer">
-                                        Excalidraw
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 学习 -->
-                        <div class="mainCont">
-                            <div class="quick-alls">
-                                <div class="quicks">
-                                    <a href="https://github.com/" target="_blank" rel="noopener noreferrer">
-                                        GitHub
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://developer.mozilla.org/zh-CN/" target="_blank" rel="noopener noreferrer">
-                                        MDN 文档
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://www.runoob.com/" target="_blank" rel="noopener noreferrer">
-                                        菜鸟教程
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://leetcode.cn/" target="_blank" rel="noopener noreferrer">
-                                        力扣 LeetCode
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://www.coursera.org/" target="_blank" rel="noopener noreferrer">
-                                        Coursera
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://stackoverflow.com/" target="_blank" rel="noopener noreferrer">
-                                        Stack Overflow
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://www.bilibili.com/" target="_blank" rel="noopener noreferrer">
-                                        B站学习
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://juejin.cn/" target="_blank" rel="noopener noreferrer">
-                                        稀土掘金
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://www.zhihu.com/" target="_blank" rel="noopener noreferrer">
-                                        知乎
-                                    </a>
-                                </div>
-                                <div class="quicks">
-                                    <a href="https://segmentfault.com/" target="_blank" rel="noopener noreferrer">
-                                        思否
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="tab"></div>
+                    <div class="content products"></div>
                 </div>
-                <!-- 刷新背景 + 设置图标 -->
+
+                <!-- 主题 + 刷新背景 + 设置 -->
+                <div id="theme-toggle" aria-label="切换主题" role="button" title="主题：跟随系统（点击切换）">
+                    <span class="theme-icon">🌓</span>
+                </div>
                 <div id="bg-refresh" aria-label="刷新背景" role="button" title="刷新背景图片">
                     <span class="refresh-icon">↻</span>
                 </div>
                 <div id="menu" aria-label="设置" role="button">
                     <i id="icon-menu" class="iconfont icon-shezhi"></i>
                 </div>
+
                 <!-- 设置页 -->
                 <div class="set">
                     <div class="tabs">
                         <div class="tab-items actives">搜索引擎</div>
                         <div class="tab-items" id="set-quick-menu">快捷方式</div>
                         <div class="tab-items">背景图片</div>
+                        <div class="tab-items" id="set-pref-menu">偏好</div>
                         <div class="tab-items">数据备份</div>
                     </div>
                     <div class="contents productss">
@@ -286,56 +170,18 @@
                             <div class="set_blocks">
                                 <div class="set_blocks_content">
                                     <div class="se_list">
-                                        <div class="se_list_table">
-                                            <div class="se_list_div">
-                                                <div class="se_list_num">
-                                                    <i class="iconfont icon-home"></i>
-                                                </div>
-                                                <div class="se_list_name">百度</div>
-                                                <div class="se_list_button">
-                                                    <button class="set_se_default" value="baidu"
-                                                        style="border-radius: 8px 0px 0px 8px;" aria-label="设为默认">
-                                                        <span class="iconfont icon-home"></span>
-                                                    </button>
-                                                    <button class="edit_se" value="baidu" aria-label="编辑">
-                                                        <span class="iconfont icon-xiugai"></span>
-                                                    </button>
-                                                    <button class="delete_se" value="baidu"
-                                                        style="border-radius: 0px 8px 8px 0px;" aria-label="删除">
-                                                        <span class="iconfont icon-delete"></span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <div class="se_list_div">
-                                                <div class="se_list_num">2</div>
-                                                <div class="se_list_name">谷歌</div>
-                                                <div class="se_list_button">
-                                                    <button class="set_se_default" value="google" aria-label="设为默认"><span
-                                                            class="iconfont icon-home"></span></button>
-                                                    <button class="edit_se" value="google" aria-label="编辑"><span
-                                                            class="iconfont icon-xiugai"></span></button>
-                                                    <button class="delete_se" value="google" aria-label="删除"><span
-                                                            class="iconfont icon-delete"></span></button>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <div class="se_list_table"><!-- renderSeSettings() 渲染 --></div>
                                     </div>
                                     <div class="se_add_preinstall">
-                                        <div class="set_se_list_add">
-                                            <span class="set_quick_text">新增</span>
-                                        </div>
-                                        <div class="set_se_list_preinstall">
-                                            <span class="set_quick_text">重置</span>
-                                        </div>
+                                        <div class="set_se_list_add"><span class="set_quick_text">新增</span></div>
+                                        <div class="set_se_list_preinstall"><span class="set_quick_text">重置</span></div>
                                     </div>
                                     <div class="add_content se_add_content" style="display:none;">
                                         <div class="froms">
                                             <div class="from_items">
                                                 <div class="from_text">顺序</div>
                                                 <input type="hidden" name="key_inhere">
-                                                <input type="number" name="key" placeholder="请填入小于 20 的正整数"
-                                                    autocomplete="off"
-                                                    oninput="if(value>20)value=20;if(value<0)value=0">
+                                                <input type="number" name="key" placeholder="请填入 1 ~ 20 的正整数" autocomplete="off" min="1" max="20">
                                             </div>
                                             <div class="from_items">
                                                 <div class="from_text">名称</div>
@@ -343,17 +189,11 @@
                                             </div>
                                             <div class="from_items">
                                                 <div class="from_text">网址</div>
-                                                <input type="url" name="url" placeholder="以 https 或 http 开头的 URL"
-                                                    autocomplete="off">
+                                                <input type="url" name="url" placeholder="以 https 或 http 开头的 URL" autocomplete="off">
                                             </div>
                                             <div class="from_items">
                                                 <div class="from_text">字段名</div>
-                                                <input type="text" name="name" placeholder="URL 中 ? 后面的字段"
-                                                    autocomplete="off">
-                                            </div>
-                                            <div class="from_items" style="display: none;">
-                                                <input type="text" name="icon" placeholder="iconfont icon-Earth"
-                                                    value="iconfont icon-Earth" disabled="disabled">
+                                                <input type="text" name="name" placeholder="URL 中 ? 后面的字段" autocomplete="off">
                                             </div>
                                         </div>
                                         <div class="from_items button">
@@ -369,53 +209,18 @@
                             <div class="set_blocks">
                                 <div class="set_blocks_content">
                                     <div class="quick_list">
-                                        <div class="quick_list_table">
-                                            <div class="quick_list_div">
-                                                <div class="quick_list_div_num">1</div>
-                                                <div class="quick_list_div_name">哔哩哔哩</div>
-                                                <div class="quick_list_div_button">
-                                                    <button class="edit_quick" value="1"
-                                                        style="border-radius: 8px 0px 0px 8px;" aria-label="编辑">
-                                                        <span class="iconfont icon-xiugai"></span>
-                                                    </button>
-                                                    <button class="delete_quick" value="1"
-                                                        style="border-radius: 0px 8px 8px 0px;" aria-label="删除">
-                                                        <span class="iconfont icon-delete"></span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <div class="quick_list_div">
-                                                <div class="quick_list_div_num">2</div>
-                                                <div class="quick_list_div_name">知乎</div>
-                                                <div class="quick_list_div_button">
-                                                    <button class="edit_quick" value="2"
-                                                        style="border-radius: 8px 0px 0px 8px;" aria-label="编辑">
-                                                        <span class="iconfont icon-xiugai"></span>
-                                                    </button>
-                                                    <button class="delete_quick" value="2"
-                                                        style="border-radius: 0px 8px 8px 0px;" aria-label="删除">
-                                                        <span class="iconfont icon-delete"></span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <div class="quick_list_table"><!-- renderQuickSettings() 渲染 --></div>
                                     </div>
                                     <div class="se_add_preinstalls">
-                                        <div class="set_quick_list_add">
-                                            <span class="set_quick_text">新增</span>
-                                        </div>
-                                        <div class="set_quick_list_preinstall">
-                                            <span class="set_quick_text">重置</span>
-                                        </div>
+                                        <div class="set_quick_list_add"><span class="set_quick_text">新增</span></div>
+                                        <div class="set_quick_list_preinstall"><span class="set_quick_text">重置</span></div>
                                     </div>
                                     <div class="add_content quick_add_content" style="display:none;">
                                         <div class="froms">
                                             <div class="from_items">
                                                 <div class="from_text">顺序</div>
                                                 <input type="hidden" name="key_inhere">
-                                                <input type="number" name="key" placeholder="请填入小于 100 的正整数"
-                                                    autocomplete="off"
-                                                    oninput="if(value>99)value=99;if(value<0)value=0">
+                                                <input type="number" name="key" placeholder="请填入 1 ~ 99 的正整数" autocomplete="off" min="1" max="99">
                                             </div>
                                             <div class="from_items">
                                                 <div class="from_text">名称</div>
@@ -423,8 +228,7 @@
                                             </div>
                                             <div class="from_items">
                                                 <div class="from_text">网址</div>
-                                                <input type="url" name="url" placeholder="以 https 或 http 开头的 URL"
-                                                    autocomplete="off">
+                                                <input type="url" name="url" placeholder="以 https 或 http 开头的 URL" autocomplete="off">
                                             </div>
                                         </div>
                                         <div class="from_items button">
@@ -439,10 +243,10 @@
                         <div class="mainConts">
                             <div class="set_blocks">
                                 <div class="set_tip">
-                                    <span class="set_text mobile">点击下方选项以切换壁纸，使用除默认壁纸以外的选项可能会导致页面载入缓慢</span>
+                                    <span class="set_text mobile">点击下方选项即可切换壁纸并立即生效，使用网络壁纸源时首次加载稍慢</span>
                                     <span class="set_text mobile">不建议使用以主色调为白色的壁纸，会导致本站部分元素无法辨认</span>
                                     <span class="set_text mobile">自定义 URL 支持 {key} 占位符，API 密钥将持久保存在本地，下次访问无需重新输入</span>
-                                    <span class="set_text" id="wallpaper_text">请点击选项以查看各项说明，高亮项为选中，选中后刷新页面以生效</span>
+                                    <span class="set_text" id="wallpaper_text">请点击选项以查看各项说明，高亮项为当前选中，切换后立即生效</span>
                                 </div>
                                 <div class="set_blocks_content wallpaper-tab-content">
                                     <div class="from_container">
@@ -451,46 +255,28 @@
                                                 <div class="from_row_content">
                                                     <div id="wallpaper">
                                                         <div class="form-radio">
-                                                            <input type="radio" id="radio1" class="set-wallpaper"
-                                                                name="wallpaper-type" value="1" style="display: none;">
-                                                            <label class="form-radio-label" for="radio1">
-                                                                默认壁纸
-                                                            </label>
+                                                            <input type="radio" id="radio1" class="set-wallpaper" name="wallpaper-type" value="1">
+                                                            <label class="form-radio-label" for="radio1">默认壁纸</label>
                                                         </div>
                                                         <div class="form-radio">
-                                                            <input type="radio" id="radio2" class="set-wallpaper"
-                                                                name="wallpaper-type" value="2" style="display: none;">
-                                                            <label class="form-radio-label" for="radio2">
-                                                                每日必应
-                                                            </label>
+                                                            <input type="radio" id="radio2" class="set-wallpaper" name="wallpaper-type" value="2">
+                                                            <label class="form-radio-label" for="radio2">每日必应</label>
                                                         </div>
                                                         <div class="form-radio">
-                                                            <input type="radio" id="radio3" class="set-wallpaper"
-                                                                name="wallpaper-type" value="3" style="display: none;">
-                                                            <label class="form-radio-label" for="radio3">
-                                                                随机风景
-                                                            </label>
+                                                            <input type="radio" id="radio3" class="set-wallpaper" name="wallpaper-type" value="3">
+                                                            <label class="form-radio-label" for="radio3">随机风景</label>
                                                         </div>
                                                         <div class="form-radio">
-                                                            <input type="radio" id="radio4" class="set-wallpaper"
-                                                                name="wallpaper-type" value="4" style="display: none;">
-                                                            <label class="form-radio-label" for="radio4">
-                                                                随机二次元
-                                                            </label>
+                                                            <input type="radio" id="radio4" class="set-wallpaper" name="wallpaper-type" value="4">
+                                                            <label class="form-radio-label" for="radio4">随机二次元</label>
                                                         </div>
                                                         <div class="form-radio">
-                                                            <input type="radio" id="radio5" class="set-wallpaper"
-                                                                name="wallpaper-type" value="5" style="display: none;">
-                                                            <label class="form-radio-label" for="radio5">
-                                                                随机猫片
-                                                            </label>
+                                                            <input type="radio" id="radio5" class="set-wallpaper" name="wallpaper-type" value="5">
+                                                            <label class="form-radio-label" for="radio5">随机猫片</label>
                                                         </div>
                                                         <div class="form-radio">
-                                                            <input type="radio" id="radio6" class="set-wallpaper"
-                                                                name="wallpaper-type" value="6" style="display: none;">
-                                                            <label class="form-radio-label" for="radio6">
-                                                                自定义 URL
-                                                            </label>
+                                                            <input type="radio" id="radio6" class="set-wallpaper" name="wallpaper-type" value="6">
+                                                            <label class="form-radio-label" for="radio6">自定义 URL</label>
                                                         </div>
                                                     </div>
                                                     <div id="wallpaper_url" style="display: none;">
@@ -500,7 +286,7 @@
                                                         </div>
                                                         <div class="from_items" style="margin-top: 8px;">
                                                             <label class="from_text" for="wallpaper-apikey">密钥</label>
-                                                            <input type="password" id="wallpaper-apikey" placeholder="API 密钥（可选，将替换 URL 中的 {key}，持久保存）" autocomplete="off">
+                                                            <input type="password" id="wallpaper-apikey" placeholder="API 密钥（可选，将替换 URL 中的 {key}，持久保存）" autocomplete="new-password">
                                                         </div>
                                                         <div class="from_items button" style="margin-top: 10px;">
                                                             <div class="wallpaper_save">保存</div>
@@ -527,6 +313,60 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- 偏好设置（v1.7） -->
+                        <div class="mainConts">
+                            <div class="set_blocks">
+                                <div class="set_tip">
+                                    <span class="set_text">以下选项即改即存、立即生效，全部保存在本地</span>
+                                </div>
+                                <div class="set_blocks_content pref-tab-content">
+                                    <div class="pref-group">
+                                        <div class="pref-group-title">界面</div>
+                                        <label class="wallpaper-cache-label">
+                                            <input type="checkbox" id="pref-hitokoto">
+                                            一言卡片（搜索框下方的随机语录，点击可复制）
+                                        </label>
+                                        <label class="wallpaper-cache-label">
+                                            <input type="checkbox" id="pref-seconds">
+                                            时钟显示秒
+                                        </label>
+                                        <label class="wallpaper-cache-label">
+                                            <input type="checkbox" id="pref-parallax">
+                                            背景视差（背景随鼠标轻微移动，触屏设备自动关闭）
+                                        </label>
+                                        <label class="wallpaper-cache-label">
+                                            <input type="checkbox" id="pref-greeting">
+                                            启动问候（打开页面时的天气欢迎提示）
+                                        </label>
+                                    </div>
+                                    <div class="pref-group">
+                                        <div class="pref-group-title">搜索</div>
+                                        <label class="wallpaper-cache-label">
+                                            <input type="checkbox" id="pref-history">
+                                            记录搜索历史（聚焦空搜索框时展示，仅保存在本地）
+                                        </label>
+                                        <div class="from_items" style="margin-top: 6px;">
+                                            <div class="but-ordinary but-small" id="pref-history-clear">清除搜索历史</div>
+                                        </div>
+                                    </div>
+                                    <div class="pref-group" id="countdown-form">
+                                        <div class="pref-group-title">倒数日（显示在日期下方，可倒数也可纪念）</div>
+                                        <div class="from_items">
+                                            <label class="from_text" for="countdown-title-input">名称</label>
+                                            <input type="text" id="countdown-title-input" placeholder="如：生日、考试、纪念日（12 字以内）" autocomplete="off" maxlength="12">
+                                        </div>
+                                        <div class="from_items" style="margin-top: 8px;">
+                                            <label class="from_text" for="countdown-date-input">日期</label>
+                                            <input type="date" id="countdown-date-input">
+                                        </div>
+                                        <div class="from_items button" style="margin-top: 12px;">
+                                            <div class="countdown_save">保存</div>
+                                            <div class="countdown_clear">清除</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <!-- 数据备份设置 -->
                         <div class="mainConts">
                             <div class="set_blocks">
@@ -538,11 +378,11 @@
                                 <div class="set_button">
                                     <div class="but-ordinary" id="my_data_in">导入</div>
                                     <div class="but-ordinary" id="my_data_out">导出</div>
-                                    <input type="file" id="my_data_file" name="file" style="display: none">
+                                    <input type="file" id="my_data_file" name="file" accept="application/json,.json" style="display: none">
                                 </div>
                                 <div class="set_version">
                                     <span class="set_version-text">BY&nbsp;Little Gao</span>
-                                    <span class="set_version-text2">©&nbsp;Snavigation&nbsp;v&nbsp;1.2</span>
+                                    <span class="set_version-text2">©&nbsp;Snavigation&nbsp;v&nbsp;1.7</span>
                                 </div>
                             </div>
                         </div>
@@ -552,42 +392,41 @@
         </div>
         <!-- 版权信息 -->
         <div class="foot">
-            <div class="power">Copyright&nbsp;&copy;&nbsp;
-                <script>
-                    document.write('  ' + (new Date()).getFullYear())
-                </script>&nbsp;<a href="https://imsyy.top">Little Gao Studio</a>&nbsp;&amp;&nbsp;
-                <!-- 以下信息请不要修改哦 -->
+            <div class="power">Copyright&nbsp;&copy;&nbsp;<span id="copyright-year">2026</span>&nbsp;<a href="https://imsyy.top" target="_blank" rel="noopener noreferrer">Little Gao Studio</a>&nbsp;&amp;&nbsp;
                 Power&nbsp;by&nbsp;<a href="https://github.com/imsyy/Snavigation" target="_blank" rel="noopener noreferrer">imsyy</a>
             </div>
         </div>
     </section>
-    <!-- 主体内容结束 -->
-    <!-- noscript -->
+
     <noscript>
         <div class="noscript fixed-top">请开启 JavaScript</div>
     </noscript>
+
+    <!-- 快捷键面板 -->
     <div id="shortcuts-modal" class="shortcuts-modal" style="display: none;" aria-hidden="true">
         <div class="shortcuts-panel">
             <div class="shortcuts-title">快捷键</div>
             <div class="shortcut-item"><span class="shortcut-key">?</span><span>打开 / 关闭快捷键面板</span></div>
             <div class="shortcut-item"><span class="shortcut-key">H</span><span>打开 / 关闭快捷键面板（备用）</span></div>
             <div class="shortcut-item"><span class="shortcut-key">/</span><span>聚焦搜索框</span></div>
-            <div class="shortcut-item"><span class="shortcut-key">S</span><span>打开设置</span></div>
-            <div class="shortcut-item"><span class="shortcut-key">B</span><span>打开书签</span></div>
-            <div class="shortcut-item"><span class="shortcut-key">Esc</span><span>关闭弹层</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">S</span><span>打开 / 关闭设置</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">B</span><span>打开 / 关闭书签</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">T</span><span>切换主题（自动 / 浅色 / 深色）</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">R</span><span>换一张壁纸</span></div>
+            <div class="shortcut-item"><span class="shortcut-key">Esc</span><span>逐层关闭弹层 / 面板 / 搜索</span></div>
         </div>
     </div>
-    <!-- JS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/izitoast/1.4.0/js/iziToast.min.js"></script>
-    <script type="text/javascript" src="./js/js.cookie.js"></script>
-    <!-- Snavigation 模块化 JS（按依赖顺序加载） -->
-    <script type="text/javascript" src="./js/storage.js"></script>
-    <script type="text/javascript" src="./js/search.js"></script>
-    <script type="text/javascript" src="./js/bookmarks.js"></script>
-    <script type="text/javascript" src="./js/settings.js"></script>
-    <script type="text/javascript" src="./js/wallpaper.js"></script>
-    <script type="text/javascript" src="./js/main.js"></script>
+
+    <!-- JS：零外部依赖，defer 保序执行 -->
+    <script defer src="./js/config.js"></script>
+    <script defer src="./js/utils.js"></script>
+    <script defer src="./js/storage.js"></script>
+    <script defer src="./js/wallpaper.js"></script>
+    <script defer src="./js/search.js"></script>
+    <script defer src="./js/bookmarks.js"></script>
+    <script defer src="./js/settings.js"></script>
+    <script defer src="./js/widgets.js"></script>
+    <script defer src="./js/main.js"></script>
 </body>
 
 </html>

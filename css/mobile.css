@@ -30,6 +30,25 @@
         font-size: 2.75rem;
     }
 
+    /* 显示秒时（HH:MM:SS）进一步收窄，避免溢出 */
+    .time.has-sec #time_text {
+        font-size: 2.1rem;
+    }
+
+    /* 一言卡片 */
+    .hitokoto {
+        max-width: calc(100% - 48px);
+        padding: 8px 14px;
+    }
+
+    .hitokoto-from {
+        display: none;
+    }
+
+    .countdown-pill {
+        font-size: 0.8rem;
+    }
+
     #day {
         font-size: 1.05rem;
     }
@@ -53,6 +72,15 @@
     /*设置按钮*/
     #menu i {
         font-size: 1.45rem;
+    }
+
+    #theme-toggle .theme-icon {
+        font-size: 1.1rem;
+    }
+
+    #bg-refresh i,
+    #bg-refresh .refresh-icon {
+        font-size: 1.2rem;
     }
 
     /*书签*/
@@ -84,11 +112,7 @@
 
 /* 大于568px时 */
 @media (min-width: 568px) {
-    .iziToast {
-        border-radius: 30px !important;
-    }
-
-    .iziToast-wrapper {
-        padding: 10px 0px !important;
+    .toast {
+        border-radius: 30px;
     }
 }

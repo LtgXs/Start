@@ -24,18 +24,6 @@
     }
 }
 
-/*下沉动画*/
-@keyframes down {
-    0% {
-        opacity: 0;
-        top: 44%;
-    }
-
-    100% {
-        opacity: 1;
-        top: 46.5%;
-    }
-}
 @keyframes spin-continuous { 100% { transform: rotate(360deg); } }
 
 /* 优雅滑入渐显 */

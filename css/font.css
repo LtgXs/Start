@@ -1,14 +1,14 @@
 @font-face {
   font-family: "MiSans";
   src: url('../font/MiSans-Regular.subset.woff2') format('woff2');
+  font-display: swap;
 }
 
 @font-face {
   font-family: "iconfont";
-  /* Project id 3222465 */
-  src: url('../font/iconfont.woff2') format('woff2'),
-    url('../font/iconfont.woff') format('woff'),
-    url('../font/iconfont.ttf') format('truetype');
+  /* Project id 3222465（仅保留 woff2，现代浏览器全部支持） */
+  src: url('../font/iconfont.woff2') format('woff2');
+  font-display: block;
 }
 
 .iconfont {
@@ -19,74 +19,21 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-.icon-tianjia-:before {
-  content: "\e643";
-}
-
-.icon-taobao:before {
-  content: "\e755";
-}
-
-.icon-jingdong:before {
-  content: "\e618";
-}
-
-.icon-xinlangweibo:before {
-  content: "\e601";
-}
-
-.icon-zhihu:before {
-  content: "\e60a";
-}
-
-.icon-github:before {
-  content: "\e691";
-}
-
-.icon-delete:before {
-  content: "\e94d";
-}
-
-.icon-home:before {
-  content: "\e964";
-}
-
-.icon-xiugai:before {
-  content: "\e626";
-}
-
-.icon-bilibilidonghua:before {
-  content: "\e8b1";
-}
-
-.icon-wangluo:before {
-  content: "\e600";
-}
-
-.icon-sougousousuo:before {
-  content: "\e685";
-}
-
-.icon-360sousuo:before {
-  content: "\e64d";
-}
-
-.icon-baidu:before {
-  content: "\eb49";
-}
-
-.icon-bing:before {
-  content: "\eb4c";
-}
-
-.icon-google:before {
-  content: "\ebaa";
-}
-
-.icon-shezhi:before {
-  content: "\e634";
-}
-
-.icon-sousuo:before {
-  content: "\e635";
-}
+.icon-tianjia-:before { content: "\e643"; }
+.icon-taobao:before { content: "\e755"; }
+.icon-jingdong:before { content: "\e618"; }
+.icon-xinlangweibo:before { content: "\e601"; }
+.icon-zhihu:before { content: "\e60a"; }
+.icon-github:before { content: "\e691"; }
+.icon-delete:before { content: "\e94d"; }
+.icon-home:before { content: "\e964"; }
+.icon-xiugai:before { content: "\e626"; }
+.icon-bilibilidonghua:before { content: "\e8b1"; }
+.icon-wangluo:before { content: "\e600"; }
+.icon-sougousousuo:before { content: "\e685"; }
+.icon-360sousuo:before { content: "\e64d"; }
+.icon-baidu:before { content: "\eb49"; }
+.icon-bing:before { content: "\eb4c"; }
+.icon-google:before { content: "\ebaa"; }
+.icon-shezhi:before { content: "\e634"; }
+.icon-sousuo:before { content: "\e635"; }
